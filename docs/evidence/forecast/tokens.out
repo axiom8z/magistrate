@@ -1,0 +1,23 @@
+tools per suite {'banking': 11, 'slack': 11, 'travel': 29, 'workspace': 24} estimated schema chars {'banking': 4405, 'slack': 3751, 'travel': 13654, 'workspace': 11694} est tokens {'banking': 1101, 'slack': 937, 'travel': 3413, 'workspace': 2923}
+('ALL', 'attack') n=4734 calls mean 4.13 median 3.0 p90 7 max 16 | input tokens/run mean 13572 median 10015 p90 27670 max 149734 | output tokens/run mean 332 p90 692
+('ALL', 'benign') n=582 calls mean 3.89 median 3.0 p90 7 max 16 | input tokens/run mean 11368 median 9306 p90 24011 max 74414 | output tokens/run mean 284 p90 613
+('banking', 'attack') n=864 calls mean 3.29 median 3.0 p90 6 max 16 | input tokens/run mean 5201 median 4515 p90 9249 max 56988 | output tokens/run mean 237 p90 494
+('banking', 'benign') n=96 calls mean 2.77 median 3.0 p90 4 max 6 | input tokens/run mean 3898 median 4059 p90 5832 max 9675 | output tokens/run mean 186 p90 383
+('claude-3-5-sonnet-20241022', 'attack') n=629 calls mean 4.23 median 3 p90 8 max 16 | input tokens/run mean 13607 median 10134 p90 28250 max 80684 | output tokens/run mean 419 p90 680
+('claude-3-5-sonnet-20241022', 'benign') n=97 calls mean 4.23 median 3 p90 8 max 13 | input tokens/run mean 12839 median 9850 p90 25945 max 58575 | output tokens/run mean 390 p90 664
+('claude-3-7-sonnet-20250219', 'attack') n=949 calls mean 4.49 median 3 p90 8 max 16 | input tokens/run mean 15404 median 10661 p90 30462 max 88668 | output tokens/run mean 353 p90 650
+('claude-3-7-sonnet-20250219', 'benign') n=97 calls mean 4.81 median 4 p90 9 max 16 | input tokens/run mean 14394 median 9900 p90 27909 max 70342 | output tokens/run mean 335 p90 609
+('gemini-2.0-flash-001', 'attack') n=949 calls mean 2.72 median 2 p90 6 max 16 | input tokens/run mean 8155 median 6493 p90 16262 max 126581 | output tokens/run mean 159 p90 387
+('gemini-2.0-flash-001', 'benign') n=97 calls mean 2.51 median 2 p90 5 max 11 | input tokens/run mean 6479 median 4294 p90 14822 max 28042 | output tokens/run mean 120 p90 288
+('gpt-4o-2024-05-13', 'attack') n=629 calls mean 4.53 median 4 p90 7 max 11 | input tokens/run mean 13565 median 10521 p90 24396 max 84586 | output tokens/run mean 224 p90 476
+('gpt-4o-2024-05-13', 'benign') n=97 calls mean 3.66 median 3 p90 5 max 10 | input tokens/run mean 10364 median 9307 p90 19763 max 34158 | output tokens/run mean 198 p90 485
+('gpt-4o-mini-2024-07-18', 'attack') n=629 calls mean 4.33 median 4 p90 6 max 16 | input tokens/run mean 12941 median 11244 p90 21550 max 102186 | output tokens/run mean 220 p90 430
+('gpt-4o-mini-2024-07-18', 'benign') n=97 calls mean 3.75 median 4 p90 5 max 9 | input tokens/run mean 10802 median 9513 p90 19981 max 36680 | output tokens/run mean 200 p90 449
+('meta-llama_Llama-3.3-70B-Instruct', 'attack') n=949 calls mean 4.71 median 4 p90 9 max 16 | input tokens/run mean 17559 median 13108 p90 39282 max 149734 | output tokens/run mean 571 p90 1242
+('meta-llama_Llama-3.3-70B-Instruct', 'benign') n=97 calls mean 4.36 median 4 p90 8 max 16 | input tokens/run mean 13331 median 9714 p90 27826 max 74414 | output tokens/run mean 462 p90 1038
+('slack', 'attack') n=630 calls mean 6.43 median 6.0 p90 11 max 16 | input tokens/run mean 9710 median 8312 p90 18908 max 43190 | output tokens/run mean 404 p90 808
+('slack', 'benign') n=126 calls mean 5.02 median 4.0 p90 10 max 14 | input tokens/run mean 6693 median 5139 p90 14718 max 21166 | output tokens/run mean 273 p90 551
+('travel', 'attack') n=840 calls mean 5.70 median 5.0 p90 10 max 16 | input tokens/run mean 24019 median 21411 p90 42409 max 82038 | output tokens/run mean 483 p90 864
+('travel', 'benign') n=120 calls mean 5.34 median 5.0 p90 9 max 16 | input tokens/run mean 21684 median 19756 p90 38108 max 74414 | output tokens/run mean 465 p90 824
+('workspace', 'attack') n=2400 calls mean 3.27 median 3.0 p90 6 max 16 | input tokens/run mean 13943 median 10247 p90 26986 max 149734 | output tokens/run mean 294 p90 660
+('workspace', 'benign') n=240 calls mean 3.01 median 3.0 p90 5 max 8 | input tokens/run mean 11652 median 9806 p90 23922 max 37250 | output tokens/run mean 238 p90 545

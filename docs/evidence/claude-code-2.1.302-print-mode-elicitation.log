@@ -1,0 +1,13 @@
+--- start era=legacy elicit=form listchanged=true listen=true at 2026-11-04T03:28:26.2659819-05:00
+RECV {"jsonrpc":"2.0","id":"server-discover-probe-1","method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"claude-code","title":"Claude Code","version":"2.1.302","description":"Anthropic's agentic coding tool","websiteUrl":"https://claude.com/claude-code"},"io.modelcontextprotocol/clientCapabilities":{"roots":{"listChanged":true},"elicitation":{"form":{},"url":{}}}}}}
+SEND {"error":{"code":-32601,"message":"Method not found"},"id":"server-discover-probe-1","jsonrpc":"2.0"}
+RECV {"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{"roots":{"listChanged":true},"elicitation":{"form":{},"url":{}}},"clientInfo":{"name":"claude-code","title":"Claude Code","version":"2.1.302","description":"Anthropic's agentic coding tool","websiteUrl":"https://claude.com/claude-code"}},"jsonrpc":"2.0","id":0}
+SEND {"id":0,"jsonrpc":"2.0","result":{"capabilities":{"tools":{"listChanged":true}},"protocolVersion":"2025-11-25","serverInfo":{"name":"probe","version":"0"}}}
+RECV {"jsonrpc":"2.0","method":"notifications/initialized"}
+RECV {"method":"tools/list","jsonrpc":"2.0","id":1}
+SEND {"id":1,"jsonrpc":"2.0","result":{"tools":[{"description":"Echo the text back.","inputSchema":{"properties":{"text":{"type":"string"}},"type":"object"},"name":"echo"}]}}
+RECV {"method":"tools/call","params":{"name":"echo","arguments":{"text":"hi"},"_meta":{"claudecode/toolUseId":"toolu_stub1","progressToken":2}},"jsonrpc":"2.0","id":2}
+SEND {"id":"elicit-2","jsonrpc":"2.0","method":"elicitation/create","params":{"message":"Gateway approval: tool echo wants to run. Approve?","mode":"form","requestedSchema":{"properties":{"approve":{"title":"Approve","type":"boolean"}},"required":["approve"],"type":"object"}}}
+RECV {"result":{"action":"cancel"},"jsonrpc":"2.0","id":"elicit-2"}
+SEND {"id":2,"jsonrpc":"2.0","result":{"content":[{"text":"legacy elicitation answered: {\"action\":\"cancel\"}","type":"text"}]}}
+--- stdin closed at 2026-11-04T03:28:26.4056313-05:00

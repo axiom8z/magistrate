@@ -1,0 +1,6 @@
+tools 24 schema chars 12454
+tool result chars 2352
+first turn ctx=32768: wall 44.1s load 20.3s prompt 3009 tok in 8.9s (337.5/s) output 76 tok in 14.8s (5.12/s) done=stop toolcalls=[{"id": "call_4ssdwjxi", "function": {"index": 0, "name": "search_emails", "arguments": {"query": "family reunion", "sender": null}}}]
+ps: qwen3.8:27b size 18.8 GiB vram 4.7 GiB context 32768
+after result ctx=32768: wall 45.4s load 0.0s prompt 3867 tok in 3.4s (1123.9/s) output 200 tok in 41.9s (4.77/s) done=length toolcalls=None
+unloaded; ps: {'models': []}

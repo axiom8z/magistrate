@@ -1,0 +1,22 @@
+# Local working notes and client state
+.claude/
+.private/
+
+# Build output
+*.exe
+*.test
+/dist/
+/sayswho
+/swbench
+
+# Run state: latch files, audit logs and keys must never be committed
+/state/
+*.sayswho-state/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local data read by the benchmarks, not ours to redistribute
+/bench/data/
