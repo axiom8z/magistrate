@@ -71,6 +71,24 @@ func TestNonTestLinesStayUnderTheCeiling(t *testing.T) {
 	}
 }
 
+// The table in DESIGN section 4 only protects anything if every call goes through it, and it stays
+// easy to check that they do when there is one place to look.
+func TestOnlyTheFrontCallsDecide(t *testing.T) {
+	calls := 0
+	goFiles(t, func(path string, data []byte) {
+		if !bytes.Contains(data, []byte("gate.Decide(")) {
+			return
+		}
+		calls++
+		if !strings.HasPrefix(filepath.ToSlash(path), repoRoot+"/internal/front/") {
+			t.Errorf("%s calls gate.Decide", path)
+		}
+	})
+	if calls == 0 {
+		t.Error("nothing calls gate.Decide, so no call is being judged")
+	}
+}
+
 // Stdout carries the protocol, so stray output there breaks the client. Only the command itself may
 // name it, and it hands it straight to the code that writes one message per line.
 func TestOnlyTheCommandTouchesStdout(t *testing.T) {

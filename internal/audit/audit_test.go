@@ -529,35 +529,34 @@ func TestFailedWriteIsSticky(t *testing.T) {
 	l.Close()
 }
 
-// Two gateways on one state directory would fork the chain. The second to write must stop, leaving
-// the log valid, rather than write a line that makes the whole log fail.
-func TestSecondWriterIsRefused(t *testing.T) {
+// The lock stops another gateway, but not an editor or a stray script. If the file moves under it, the
+// gateway must stop writing, because its next line would chain onto a head that is no longer the last.
+func TestALogChangedFromOutsideStopsTheWriter(t *testing.T) {
 	dir := t.TempDir()
-	first, err := Open(dir)
+	path := filepath.Join(dir, "audit.log")
+	l, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := Open(dir)
+	defer l.Close()
+	if err := l.Append(Record{Tool: "t"}, true); err != nil {
+		t.Fatal(err)
+	}
+	outside, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := first.Append(Record{Tool: "t"}, true); err != nil {
-		t.Fatal(err)
+	outside.WriteString("a line from somewhere else\n")
+	outside.Close()
+	size := len(readFile(t, path))
+	if err := l.Append(Record{Tool: "t"}, true); err == nil {
+		t.Fatal("it wrote over a log that had moved")
 	}
-	if err := second.Append(Record{Tool: "t"}, true); err == nil {
-		t.Fatal("second writer wrote over a log that had moved")
+	if err := l.Append(Record{Tool: "t"}, true); err == nil {
+		t.Fatal("the failure did not stick")
 	}
-	if err := first.Append(Record{Tool: "t"}, true); err != nil {
-		t.Fatal(err)
-	}
-	first.Close()
-	second.Close()
-	sum, err := Verify(filepath.Join(dir, "audit.log"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sum.Count != 2 {
-		t.Fatalf("count = %d, want 2", sum.Count)
+	if got := len(readFile(t, path)); got != size {
+		t.Errorf("the log grew from %d to %d bytes after the failure", size, got)
 	}
 }
 
@@ -574,6 +573,55 @@ func TestAppendAfterCloseFails(t *testing.T) {
 	}
 	if err := l.Close(); err != nil {
 		t.Fatalf("second Close = %v", err)
+	}
+}
+
+// Two gateways on one state directory would fork the chain, and the log would then refuse every later
+// start. The lock has to go with its holder, or a crash would leave the directory unusable.
+func TestASecondGatewayOnOneStateDirectoryIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	first, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second, err := Open(dir); err == nil {
+		second.Close()
+		t.Fatal("a second gateway was let in")
+	} else if !strings.Contains(err.Error(), "another gateway") {
+		t.Errorf("err = %v", err)
+	}
+	if err := first.Append(Record{Tool: "t", Decision: Allow}, true); err != nil {
+		t.Errorf("the refused start disturbed the first gateway: %v", err)
+	}
+	first.Close()
+	third, err := Open(dir)
+	if err != nil {
+		t.Fatalf("the lock outlived its holder: %v", err)
+	}
+	third.Close()
+	if sum, err := Verify(filepath.Join(dir, "audit.log"), ""); err != nil || sum.Count != 1 {
+		t.Errorf("verify: %+v, %v", sum, err)
+	}
+}
+
+// A new key would leave every digest already in the log matching nothing, with nobody told.
+func TestALogWithRecordsNeedsItsKey(t *testing.T) {
+	dir := t.TempDir()
+	l, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Append(Record{Tool: "t", Decision: Allow}, true)
+	l.Close()
+	if err := os.Remove(filepath.Join(dir, "audit.key")); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := Open(dir); err == nil {
+		again.Close()
+		t.Fatal("a new key was made for a log that already has records")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "audit.key")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the refused start made a key: %v", err)
 	}
 }
 

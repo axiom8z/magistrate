@@ -11,37 +11,62 @@ import (
 	"log"
 	"sync"
 
+	"github.com/axiom8z/sayswho/internal/approve"
 	"github.com/axiom8z/sayswho/internal/audit"
+	"github.com/axiom8z/sayswho/internal/gate"
+	"github.com/axiom8z/sayswho/internal/policy"
+	"github.com/axiom8z/sayswho/internal/prov"
 	"github.com/axiom8z/sayswho/internal/rpc"
 	"github.com/axiom8z/sayswho/internal/upstream"
 )
 
+// Config is what a Gateway enforces. HasPrompt is separate from Prompt because an empty prompt file is
+// still a prompt file: it sources nothing, and must not turn on the no-prompt rule.
+type Config struct {
+	Policy    *policy.Policy
+	Prompt    string
+	HasPrompt bool
+	StateDir  string
+}
+
 // Gateway serves one client session.
 type Gateway struct {
-	audit *audit.Log
-	notes *log.Logger // stderr, for the operator; never the client
-	out   *rpc.Writer
+	audit  *audit.Log
+	notes  *log.Logger // stderr, for the operator; never the client
+	out    *rpc.Writer
+	policy *policy.Policy
+	prov   *prov.State
+	latch  *gate.Latch
+	budget *approve.Budget
+	// hasPrompt says whether a prompt file was given.
+	hasPrompt bool
 
-	// Read loop only.
-	initialized bool
-	// clientElicits records whether the client declared elicitation. Milestone 3 asks through it.
-	clientElicits bool
+	// Written once by the read loop, before it starts any call that reads them.
+	initialized   bool
+	clientElicits bool // the client declared form elicitation, so a person can be asked
 
 	// Written by startServers before it closes ready, and only read after that.
 	ready   chan struct{}
 	servers map[string]*upstream.Server
 	listed  map[string]bool
+	hidden  map[string]string // tools the policy refuses, with the rule that says why
 	listing jsontext.Value
 
-	calls    sync.WaitGroup
-	mu       sync.Mutex
-	inflight map[string]context.CancelFunc // running calls, by the client's raw request ID
+	calls     sync.WaitGroup
+	mu        sync.Mutex
+	inflight  map[string]context.CancelFunc // running calls, by the client's raw request ID
+	questions map[string]chan *rpc.Message  // open questions, by our raw request ID
+	asked     int                           // questions sent, which makes each one's ID
 }
 
 // New returns a Gateway that records to auditLog and writes operator notes to notes.
-func New(auditLog *audit.Log, notes *log.Logger) *Gateway {
-	return &Gateway{audit: auditLog, notes: notes, ready: make(chan struct{}),
-		servers: map[string]*upstream.Server{}, listed: map[string]bool{}, inflight: map[string]context.CancelFunc{}}
+func New(auditLog *audit.Log, notes *log.Logger, cfg Config) *Gateway {
+	p := cfg.Policy
+	return &Gateway{audit: auditLog, notes: notes, policy: p, hasPrompt: cfg.HasPrompt,
+		prov: prov.New(cfg.Prompt, p.TrustedValues, p.BoundIDs), latch: gate.NewLatch(cfg.StateDir),
+		budget: approve.NewBudget(p.AsksPerSession), ready: make(chan struct{}),
+		servers: map[string]*upstream.Server{}, listed: map[string]bool{}, hidden: map[string]string{},
+		inflight: map[string]context.CancelFunc{}, questions: map[string]chan *rpc.Message{}}
 }
 
 // Serve runs the session until in ends, then stops the servers and closes the log. Only protocol
@@ -98,7 +123,7 @@ func (g *Gateway) readLoop(ctx context.Context, in io.Reader) error {
 func (g *Gateway) handle(ctx context.Context, m *rpc.Message) {
 	switch {
 	case m.IsResponse():
-		// We send the client no requests yet, so nothing can be waiting for this.
+		g.answered(m)
 	case m.IsNotification():
 		// notifications/initialized needs no action, and unknown notifications are to be ignored.
 		if m.Method == "notifications/cancelled" {
@@ -136,12 +161,25 @@ func (g *Gateway) initialize(m *rpc.Message) {
 		return
 	}
 	g.initialized = true
-	g.clientElicits = params.Capabilities.Elicitation.Kind() == jsontext.KindBeginObject
+	g.clientElicits = declaresForm(params.Capabilities.Elicitation)
 	g.reply(m.ID, map[string]any{
 		"protocolVersion": upstream.ProtocolVersion,
 		"capabilities":    map[string]any{"tools": map[string]any{}},
 		"serverInfo":      map[string]string{"name": "sayswho", "version": upstream.Version},
 	})
+}
+
+// declaresForm reads the elicitation capability. The specification says an empty object means form
+// mode, and that a server must not send a mode the client did not declare, so a client declaring only
+// url can't be asked.
+func declaresForm(raw jsontext.Value) bool {
+	var modes map[string]jsontext.Value
+	if raw.Kind() != jsontext.KindBeginObject || json.Unmarshal(raw, &modes) != nil {
+		return false
+	}
+	_, form := modes["form"]
+	_, url := modes["url"]
+	return form || !url
 }
 
 func (g *Gateway) toolsList(m *rpc.Message) {

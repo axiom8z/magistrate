@@ -1,8 +1,7 @@
 // Package rpc reads and writes newline-delimited JSON-RPC 2.0, the framing MCP uses over stdio.
 //
 // Every byte that crosses a process boundary passes through here, so the strict rules live in one
-// place: a 1 MiB cap per line, no duplicate keys, no invalid UTF-8, no batches, and IDs that are a
-// string or an integer.
+// place: a 1 MiB cap per line, no duplicate keys, no batches, and IDs that are a string or an integer.
 package rpc
 
 import (
@@ -68,12 +67,25 @@ func (m *Message) IsNotification() bool { return m.Method != "" && len(m.ID) == 
 // IsResponse reports whether this message answers an earlier request.
 func (m *Message) IsResponse() bool { return m.Method == "" }
 
-// Parse decodes one line strictly. The decoder itself rejects duplicate keys, invalid UTF-8 and
-// trailing data; the checks after it are the JSON-RPC rules. A failure is ErrInvalidMessage when
-// the line was JSON of the wrong shape, such as a batch, and some other error when it was not JSON.
+// Parse decodes one line strictly. The decoder itself rejects duplicate keys and trailing data; the
+// checks after it are the JSON-RPC rules. A failure is ErrInvalidMessage when the line was JSON of the
+// wrong shape, such as a batch, and some other error when it was not JSON.
+//
+// Broken characters are the one thing it repairs. A server cutting text at a fixed length can split an
+// emoji, and clients show U+FFFD for the piece, so refusing the line would make the gateway kill a
+// server over what works fine without it. The whole line is rewritten first, so nothing later can read
+// the original.
 func Parse(line []byte) (*Message, error) {
 	var m Message
-	if err := json.Unmarshal(line, &m); err != nil {
+	err := json.Unmarshal(line, &m)
+	if err != nil {
+		clean := jsontext.Value(bytes.Clone(line))
+		if clean.Format(jsontext.AllowInvalidUTF8(true)) == nil {
+			m = Message{}
+			err = json.Unmarshal(clean, &m)
+		}
+	}
+	if err != nil {
 		var wrongShape *json.SemanticError
 		if errors.As(err, &wrongShape) {
 			return nil, ErrInvalidMessage

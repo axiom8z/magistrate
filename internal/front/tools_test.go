@@ -69,6 +69,9 @@ func TestBadToolsAreHiddenWithANote(t *testing.T) {
 		{"schema with no type", `{"name":"untyped","inputSchema":{}}`, "inputSchema", "s__untyped"},
 		{"schema properties of the wrong type", `{"name":"badprops","inputSchema":{"type":"object","properties":5}}`, "inputSchema", "s__badprops"},
 		{"schema required of the wrong type", `{"name":"badreq","inputSchema":{"type":"object","required":"a"}}`, "inputSchema", "s__badreq"},
+		{"schema with null properties", `{"name":"nullprops","inputSchema":{"type":"object","properties":null}}`, "inputSchema", "s__nullprops"},
+		{"schema with null required", `{"name":"nullreq","inputSchema":{"type":"object","required":null}}`, "inputSchema", "s__nullreq"},
+		{"schema with a null inside required", `{"name":"nullelem","inputSchema":{"type":"object","required":["a",null]}}`, "inputSchema", "s__nullelem"},
 		{"null schema", `{"name":"nullschema","inputSchema":null}`, "inputSchema", "s__nullschema"},
 	}
 	for _, tt := range tests {

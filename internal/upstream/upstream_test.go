@@ -528,7 +528,6 @@ func TestServerDies(t *testing.T) {
 		{"oversize line", func(c *fakemcp.Conn) { c.Send(over) }, "1 MiB"},
 		{"invalid JSON", func(c *fakemcp.Conn) { c.Send("{not json") }, "invalid JSON-RPC"},
 		{"blank line", func(c *fakemcp.Conn) { c.Send("") }, "invalid JSON-RPC"},
-		{"invalid UTF-8", func(c *fakemcp.Conn) { c.Send("{\"jsonrpc\":\"2.0\",\"method\":\"\xff\"}") }, "invalid JSON-RPC"},
 		{"duplicate key", func(c *fakemcp.Conn) { c.Send(`{"jsonrpc":"2.0","method":"a","method":"b"}`) }, "invalid JSON-RPC"},
 		{"a batch", func(c *fakemcp.Conn) { c.Send(`[{"jsonrpc":"2.0","method":"a"}]`) }, "invalid JSON-RPC"},
 		{"a request with a float ID", func(c *fakemcp.Conn) { c.Send(`{"jsonrpc":"2.0","id":1.5,"method":"a"}`) }, "invalid JSON-RPC"},
@@ -769,6 +768,18 @@ func TestStartAllKeepsOrder(t *testing.T) {
 	}
 	if servers[2].Failure() == "" {
 		t.Error("a command that does not exist did not fail")
+	}
+}
+
+// A nil Env would mean the child inherits everything, API keys included, so the case with nothing to
+// pass must come out as an empty list.
+func TestEnvironmentWithNothingSetIsEmptyAndNotNil(t *testing.T) {
+	for _, name := range []string{"PATH", "PATHEXT", "HOME", "TMPDIR", "LANG", "SystemRoot", "SystemDrive", "windir", "ComSpec", "TEMP", "TMP", "USERPROFILE"} {
+		t.Setenv(name, "") // this is what puts the real value back afterwards
+		os.Unsetenv(name)
+	}
+	if env := environment(nil); env == nil || len(env) != 0 {
+		t.Fatalf("environment = %#v", env)
 	}
 }
 

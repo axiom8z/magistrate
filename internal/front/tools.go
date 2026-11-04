@@ -5,12 +5,17 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
+	"github.com/axiom8z/sayswho/internal/approve"
 	"github.com/axiom8z/sayswho/internal/audit"
+	"github.com/axiom8z/sayswho/internal/gate"
 	"github.com/axiom8z/sayswho/internal/policy"
+	"github.com/axiom8z/sayswho/internal/prov"
 	"github.com/axiom8z/sayswho/internal/rpc"
 	"github.com/axiom8z/sayswho/internal/upstream"
 )
@@ -32,19 +37,34 @@ const (
 	ruleTooManyCalls    = "too-many-calls"
 	ruleMalformedCall   = "malformed-call"
 	ruleNotInitialized  = "not-initialized"
+	ruleNotInPolicy     = "tool-not-in-policy"
+	rulePinMismatch     = "pin-mismatch"
+	ruleUnknownArgument = "unknown-argument"
+	ruleLatchFailed     = "latch-failed"
 )
 
 // ruleText is what the model reads about a block. It is all our own wording, and no text from a
 // server or from the call goes into it, so a block can't be made to say anything else.
 var ruleText = map[string]string{
-	ruleUnknownTool:     "no tool has that name.",
-	ruleUpstreamDead:    "the server behind this tool has stopped and will not restart in this session.",
-	ruleUpstreamTimeout: "the server did not answer in time.",
-	ruleUpstreamError:   "the server answered with an error. Its text is not shown, because server text is untrusted.",
-	ruleResultBlockType: "the result held a block that is not text, such as an image or a resource, and only text is let through.",
-	ruleResultMalformed: "the server's result was malformed.",
-	ruleAuditFailed:     "the audit log cannot be written, so no call can go through.",
-	ruleTooManyCalls:    "too many calls are running at once. Try again when one finishes.",
+	ruleUnknownTool:       "no tool has that name.",
+	ruleUpstreamDead:      "the server behind this tool has stopped and will not restart in this session.",
+	ruleUpstreamTimeout:   "the server did not answer in time.",
+	ruleUpstreamError:     "the server answered with an error. Its text is not shown, because server text is untrusted.",
+	ruleResultBlockType:   "the result held a block that is not text, such as an image or a resource, and only text is let through.",
+	ruleResultMalformed:   "the server's result was malformed.",
+	ruleAuditFailed:       "the audit log cannot be written, so no call can go through.",
+	ruleTooManyCalls:      "too many calls are running at once. Try again when one finishes.",
+	ruleNotInPolicy:       "the policy does not name this tool, so it can't be used.",
+	rulePinMismatch:       "this tool's definition is not the one the policy pinned, so it can't be used until an operator has reviewed it.",
+	ruleUnknownArgument:   "the call has an argument the policy does not list for this tool.",
+	ruleLatchFailed:       "the gateway can't record its state, so no call can go through.",
+	gate.RuleBudget:       "a value in this call did not come from the user, and this session has no approvals left to ask for.",
+	gate.RuleRefused:      "a person already refused this same call in this session.",
+	approve.RuleDeclined:  "a value in this call did not come from the user, and a person declined it.",
+	approve.RuleCancelled: "a value in this call did not come from the user, and the question to a person was dismissed.",
+	approve.RuleTimeout:   "a value in this call did not come from the user, and nobody answered in time.",
+	approve.RuleMalformed: "a value in this call did not come from the user, and the answer from the client could not be read.",
+	approve.RuleNoDialog:  "a value in this call did not come from the user, and this client can't ask a person.",
 }
 
 type textBlock struct {
@@ -92,11 +112,14 @@ func (g *Gateway) startServers(ctx context.Context, start func(context.Context) 
 }
 
 // admit renames a server's tools to <server>__<tool> and hides any that could not be used safely.
-// upstream.Tool carries only name, description and inputSchema, so nothing else gets through.
+// Only name, description and inputSchema go on: upstream.Tool holds no more than those and the
+// annotations, and they are cleared here. A tool the policy refuses is hidden rather than only blocked,
+// because a changed description is what a poisoned tool looks like, and the model must not read it.
 func (g *Gateway) admit(s *upstream.Server) []upstream.Tool {
 	var kept []upstream.Tool
 	for _, t := range s.Tools() {
 		name := s.Name() + "__" + t.Name
+		refused := g.vet(name, t)
 		switch {
 		case !policy.ValidName(t.Name) || !policy.ValidName(name):
 			g.notes.Printf("hiding tool %.128q of server %q: its name breaks the MCP rules or is too long", t.Name, s.Name())
@@ -104,24 +127,55 @@ func (g *Gateway) admit(s *upstream.Server) []upstream.Tool {
 			g.notes.Printf("hiding tool %.128q of server %q: its inputSchema is not an object schema", t.Name, s.Name())
 		case g.listed[name]:
 			g.notes.Printf("hiding a second tool named %.128q on server %q", t.Name, s.Name())
+		case refused != "":
+			g.notes.Printf("hiding tool %.128q of server %q: %s", t.Name, s.Name(), refused)
+			g.hidden[name] = refused
 		default:
 			g.listed[name] = true
-			t.Name = name
+			t.Name, t.Annotations = name, nil
 			kept = append(kept, t)
 		}
 	}
 	return kept
 }
 
+// vet checks a tool against the policy and returns the rule refusing it, if any. A pin that is missing
+// or malformed simply fails to match. The pass mode has no labels, so it has nothing to check.
+func (g *Gateway) vet(name string, t upstream.Tool) string {
+	if g.policy.Mode == policy.ModePass {
+		return ""
+	}
+	entry, known := g.policy.Tools[name]
+	if !known {
+		return ruleNotInPolicy
+	}
+	if pin, err := policy.Pin(t); err != nil || pin != entry.Pin {
+		return rulePinMismatch
+	}
+	return ""
+}
+
 // validSchema checks the shape clients insist on. All servers share one list here, and a client that
-// rejects one bad entry would lose the tools of every server.
+// rejects one bad entry would lose the tools of every server. Claude Code 2.1.302 rejects a list over
+// a null properties, a null required or a null inside required, which a plain decode would read as
+// "nothing there", so those two members stay raw until they have been looked at.
 func validSchema(raw jsontext.Value) bool {
 	var schema struct {
-		Type       string                    `json:"type"`
-		Properties map[string]jsontext.Value `json:"properties"`
-		Required   []string                  `json:"required"`
+		Type       string         `json:"type"`
+		Properties jsontext.Value `json:"properties"`
+		Required   jsontext.Value `json:"required"`
 	}
-	return raw.Kind() == jsontext.KindBeginObject && json.Unmarshal(raw, &schema) == nil && schema.Type == "object"
+	if raw.Kind() != jsontext.KindBeginObject || json.Unmarshal(raw, &schema) != nil || schema.Type != "object" {
+		return false
+	}
+	if schema.Properties != nil && schema.Properties.Kind() != jsontext.KindBeginObject {
+		return false
+	}
+	if schema.Required == nil {
+		return true
+	}
+	var names []*string
+	return schema.Required.Kind() == jsontext.KindBeginArray && json.Unmarshal(schema.Required, &names) == nil && !slices.Contains(names, nil)
 }
 
 func (g *Gateway) toolsCall(ctx context.Context, m *rpc.Message) {
@@ -157,11 +211,143 @@ func (g *Gateway) toolsCall(ctx context.Context, m *rpc.Message) {
 		g.reply(m.ID, blocked(rule))
 		return
 	}
+	c := &call{id: m.ID, name: name, server: server, tool: tool, args: args, rec: rec, label: g.policy.Tools[name]}
+	json.Unmarshal(args, &c.fields) // cannot fail: parseCall checked it is an object
+	decision := g.decide(c)
+	if decision.Action == gate.Block {
+		g.logRefusal(rec, decision.Rule)
+		g.reply(m.ID, blocked(decision.Rule))
+		return
+	}
+	if decision.ArgsAreSources {
+		g.prov.AddArguments(c.fields)
+	}
+	if decision.Action == gate.Ask && g.clientElicits {
+		g.budget.Begin(rec.ArgsHMAC)
+	}
 	callCtx, cancel := context.WithCancel(ctx)
 	g.mu.Lock()
 	g.inflight[string(m.ID)] = cancel
 	g.mu.Unlock()
-	g.calls.Go(func() { g.forward(callCtx, m.ID, server, tool, args, rec) })
+	g.calls.Go(func() { g.run(callCtx, c, decision) })
+}
+
+// call is one call on its way through the gateway. Fields holds the same values as args, by name.
+type call struct {
+	id         jsontext.Value
+	name, tool string
+	server     *upstream.Server
+	args       jsontext.Value
+	fields     map[string]jsontext.Value
+	rec        audit.Record
+	label      policy.Tool
+	report     prov.Report
+}
+
+// decide gathers what gate.Decide may look at. It runs on the read loop, so calls are judged in the
+// order they arrived, and the budget can't be spent twice by calls judged at once.
+func (g *Gateway) decide(c *call) gate.Decision {
+	in := gate.Input{Mode: g.policy.Mode, Read: c.label.Effect == policy.EffectRead,
+		HasPrompt: g.hasPrompt, Exposed: g.latch.Exposed()}
+	in.AsksLeft, in.Refused = g.budget.State(c.rec.ArgsHMAC)
+	if g.policy.Mode == policy.ModePass {
+		return gate.Decide(in)
+	}
+	for name := range c.fields {
+		if _, takes := c.label.ArgFor(name); !takes {
+			in.Bad = ruleUnknownArgument
+		}
+	}
+	c.report = g.prov.Check(c.label, c.fields)
+	if len(c.report.Findings) > 0 {
+		in.Finding = c.report.Findings[0].Rule
+	}
+	c.rec.Sources = c.report.Sources
+	return gate.Decide(in)
+}
+
+// run takes an allowed or held call to its end, on its own goroutine, so that the read loop stays free
+// to read the answer to a question and any cancellation.
+func (g *Gateway) run(ctx context.Context, c *call, decision gate.Decision) {
+	if decision.Action == gate.Ask {
+		rule := g.hold(ctx, c, decision.Rule)
+		switch {
+		case ctx.Err() != nil:
+			c.rec.Rule = ""
+			c.rec.Decision = audit.Cancelled
+			if err := g.audit.Append(c.rec, true); err != nil {
+				g.notes.Printf("audit log failed: %v", err)
+			}
+			g.finish(c.id)
+			return
+		case rule != "":
+			g.logRefusal(c.rec, rule)
+			g.finish(c.id)
+			g.reply(c.id, blocked(rule))
+			return
+		}
+		g.budget.Approved(c.rec.ArgsHMAC)
+		c.rec.Rule = approve.RuleApproved
+	}
+	g.forward(ctx, c)
+}
+
+// hold logs that a person is being asked, then asks. It returns the rule refusing the call, or "" for
+// an approval. Waiting here costs the call nothing: its timeout starts when it reaches the server.
+func (g *Gateway) hold(ctx context.Context, c *call, why string) string {
+	rec := c.rec
+	rec.Decision, rec.Rule = audit.Ask, why
+	if err := g.audit.Append(rec, true); err != nil {
+		g.notes.Printf("audit log failed: %v", err)
+		return ruleAuditFailed
+	}
+	if !g.clientElicits {
+		return approve.RuleNoDialog
+	}
+	return g.ask(ctx, approve.Prompt(c.name, c.report.Findings, c.fields))
+}
+
+// ask sends one question to the client and waits for the answer. A question that ends any other way
+// is cancelled as well, so nobody is left answering a dialog for a call that is already over.
+func (g *Gateway) ask(ctx context.Context, message string) string {
+	answer := make(chan *rpc.Message, 1)
+	g.mu.Lock()
+	g.asked++
+	id := jsontext.Value(fmt.Sprintf(`"sayswho-ask-%d"`, g.asked))
+	g.questions[string(id)] = answer
+	g.mu.Unlock()
+	defer func() {
+		g.mu.Lock()
+		delete(g.questions, string(id))
+		g.mu.Unlock()
+	}()
+	if err := g.out.Write(rpc.Message{ID: id, Method: "elicitation/create", Params: approve.Params(message)}); err != nil {
+		g.notes.Printf("asking the client: %v", err)
+		return approve.RuleNoDialog
+	}
+	timer := time.NewTimer(approve.Timeout)
+	defer timer.Stop()
+	select {
+	case m := <-answer:
+		return approve.Outcome(m)
+	case <-timer.C:
+	case <-ctx.Done():
+	}
+	params := fmt.Appendf(nil, `{"requestId":%s,"reason":"the gateway stopped waiting"}`, id)
+	if err := g.out.Write(rpc.Message{Method: "notifications/cancelled", Params: params}); err != nil {
+		g.notes.Printf("asking the client: %v", err)
+	}
+	return approve.RuleTimeout
+}
+
+// answered gives the client's answer to the question waiting for it. An answer to nothing is dropped.
+func (g *Gateway) answered(m *rpc.Message) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if answer, waiting := g.questions[string(m.ID)]; waiting {
+		delete(g.questions, string(m.ID))
+		answer <- m
+	}
 }
 
 // parseCall takes what it needs from the params and nothing else, so _meta and unknown fields stay
@@ -210,6 +396,9 @@ func (g *Gateway) route(name string) (*upstream.Server, string, string) {
 	if server != nil && server.Failure() != "" {
 		return nil, "", ruleUpstreamDead
 	}
+	if rule := g.hidden[name]; rule != "" && !g.listed[name] {
+		return nil, "", rule
+	}
 	if server == nil || !g.listed[name] {
 		return nil, "", ruleUnknownTool
 	}
@@ -225,20 +414,30 @@ func (g *Gateway) logRefusal(rec audit.Record, rule string) {
 	}
 }
 
-// forward runs one call in its own goroutine. Nothing classifies calls yet, so all of them count as
-// risky: each decision is on disk before the server can act on it. The client may kill us at any
-// moment, and what a server did must never be missing from the log.
-func (g *Gateway) forward(ctx context.Context, id jsontext.Value, server *upstream.Server, tool string,
-	args jsontext.Value, rec audit.Record) {
+// forward sends one allowed call to its server. The latch goes on disk first, so a crash can't lose
+// the fact that untrusted output may have been read. So does the decision on any act: the client may
+// kill us at any moment, and what a server did must never be missing from the log. A read that goes
+// missing has done nothing, so it doesn't pay for an fsync.
+func (g *Gateway) forward(ctx context.Context, c *call) {
+	rec := c.rec
+	if c.label.Output != policy.OutputTrusted {
+		if err := g.latch.Set(); err != nil {
+			g.notes.Printf("setting the latch: %v", err)
+			g.logRefusal(rec, ruleLatchFailed)
+			g.finish(c.id)
+			g.reply(c.id, blocked(ruleLatchFailed))
+			return
+		}
+	}
 	rec.Decision = audit.Allow
-	if err := g.audit.Append(rec, true); err != nil {
+	if err := g.audit.Append(rec, c.label.Effect != policy.EffectRead); err != nil {
 		g.notes.Printf("audit log failed: %v", err)
-		g.finish(id)
-		g.reply(id, blocked(ruleAuditFailed))
+		g.finish(c.id)
+		g.reply(c.id, blocked(ruleAuditFailed))
 		return
 	}
-	raw, callErr := server.Call(ctx, tool, args)
-	result, rule := g.outcome(server, raw, callErr)
+	raw, callErr := c.server.Call(ctx, c.tool, c.args)
+	result, rule := g.outcome(c.server, raw, callErr)
 	cancelled := ctx.Err() != nil
 	switch {
 	case cancelled:
@@ -248,18 +447,34 @@ func (g *Gateway) forward(ctx context.Context, id jsontext.Value, server *upstre
 		result = blocked(rule)
 	default:
 		rec.Decision = audit.Result
+		g.observe(c, result)
 	}
 	err := g.audit.Append(rec, rec.Decision == audit.Block)
-	g.finish(id)
+	g.finish(c.id)
 	switch {
 	case cancelled:
 		// The specification says a cancelled request gets no response.
 	case err != nil:
 		g.notes.Printf("audit log failed: %v", err)
-		g.reply(id, blocked(ruleAuditFailed))
+		g.reply(c.id, blocked(ruleAuditFailed))
 	default:
-		g.reply(id, result)
+		g.reply(c.id, result)
 	}
+}
+
+// observe tells provenance what a result said, before the client can act on it. Pass mode has no use
+// for it, and must behave as if there were no gateway at all.
+func (g *Gateway) observe(c *call, result jsontext.Value) {
+	if g.policy.Mode == policy.ModePass {
+		return
+	}
+	var res toolResult
+	json.Unmarshal(result, &res) // cannot fail: rebuild wrote it from this type
+	seen := prov.Result{Structured: res.StructuredContent, IsError: res.IsError}
+	for _, block := range res.Content {
+		seen.Texts = append(seen.Texts, block.Text)
+	}
+	g.prov.Observe(c.name, c.label, c.fields, seen)
 }
 
 // finish drops the call from the in-flight table. It runs before the reply goes out, so a client that

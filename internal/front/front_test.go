@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/axiom8z/sayswho/internal/audit"
+	"github.com/axiom8z/sayswho/internal/policy"
 	"github.com/axiom8z/sayswho/internal/rpc"
 	"github.com/axiom8z/sayswho/internal/upstream"
 	"github.com/axiom8z/sayswho/test/fakemcp"
@@ -64,9 +65,17 @@ func (b *lockedBuffer) String() string {
 	return b.buf.String()
 }
 
+// passConfig is the mode the tests of the proxy itself run in, with nothing being decided.
+func passConfig() Config { return Config{Policy: &policy.Policy{Mode: policy.ModePass}} }
+
 func newSession(t *testing.T, backends ...backend) *session {
 	t.Helper()
-	dir := t.TempDir()
+	return newSessionIn(t, t.TempDir(), passConfig(), backends...)
+}
+
+// newSessionIn runs a gateway on an existing state directory, as a restart would.
+func newSessionIn(t *testing.T, dir string, cfg Config, backends ...backend) *session {
+	t.Helper()
 	auditLog, err := audit.Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +83,10 @@ func newSession(t *testing.T, backends ...backend) *session {
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
 	s := &session{t: t, in: inW, lines: make(chan string, 256), done: make(chan error, 1), dir: dir, notes: &lockedBuffer{}}
-	s.gw = New(auditLog, log.New(s.notes, "", 0))
+	if cfg.StateDir == "" { // a test of a broken latch names its own folder, apart from the log's
+		cfg.StateDir = dir
+	}
+	s.gw = New(auditLog, log.New(s.notes, "", 0), cfg)
 	start := func(ctx context.Context) []*upstream.Server {
 		var servers []*upstream.Server
 		for _, b := range backends {
@@ -244,6 +256,9 @@ func TestInitializeRecordsElicitation(t *testing.T) {
 	}{
 		{"as Claude Code declares it", `{"capabilities":{"roots":{"listChanged":true},"elicitation":{"form":{},"url":{}}}}`, true},
 		{"empty object", `{"capabilities":{"elicitation":{}}}`, true},
+		{"form only", `{"capabilities":{"elicitation":{"form":{}}}}`, true},
+		{"url only, which can't carry a form", `{"capabilities":{"elicitation":{"url":{}}}}`, false},
+		{"not an object", `{"capabilities":{"elicitation":true}}`, false},
 		{"not declared", `{"capabilities":{"roots":{}}}`, false},
 		{"null", `{"capabilities":{"elicitation":null}}`, false},
 		{"no capabilities", `{}`, false},
@@ -346,7 +361,6 @@ func TestBadLinesGetANullIDErrorAndReadingContinues(t *testing.T) {
 		{"truncated", `{"jsonrpc":"2.0","id":1,`, parse},
 		{"duplicate key", `{"jsonrpc":"2.0","id":1,"id":2,"method":"ping"}`, parse},
 		{"duplicate key in params", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"a","name":"b"}}`, parse},
-		{"invalid UTF-8", "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"\xff\"}", parse},
 		{"over the cap", `{"jsonrpc":"2.0","id":1,"method":"` + strings.Repeat("x", rpc.MaxLine) + `"}`, invalid},
 		{"far over the cap", strings.Repeat("y", 3*rpc.MaxLine), invalid},
 		{"a batch", `[{"jsonrpc":"2.0","id":1,"method":"ping"}]`, invalid},
@@ -417,7 +431,7 @@ func TestClosedStdoutIsNotedAndTheSessionEndsCleanly(t *testing.T) {
 	}
 	var notes lockedBuffer
 	input := `{"jsonrpc":"2.0","id":1,"method":"ping"}` + "\n" + `{"jsonrpc":"2.0","id":2,"method":"made/up"}` + "\n"
-	gw := New(auditLog, log.New(&notes, "", 0))
+	gw := New(auditLog, log.New(&notes, "", 0), passConfig())
 	err = gw.Serve(strings.NewReader(input), brokenWriter{}, func(context.Context) []*upstream.Server { return nil })
 	if err != nil {
 		t.Fatalf("Serve = %v, want nil: the client leaving is not a failure", err)
@@ -504,7 +518,7 @@ func TestReadErrorIsReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	gw := New(auditLog, log.New(io.Discard, "", 0))
+	gw := New(auditLog, log.New(io.Discard, "", 0), passConfig())
 	err = gw.Serve(iotest.ErrReader(errors.New("stdin broke")), &out, func(context.Context) []*upstream.Server { return nil })
 	if err == nil || !strings.Contains(err.Error(), "stdin broke") {
 		t.Fatalf("Serve = %v", err)

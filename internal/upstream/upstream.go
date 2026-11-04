@@ -52,12 +52,14 @@ type Config struct {
 	Env           []string // names of variables to pass through
 }
 
-// Tool is one tool as the server listed it. Only these fields are read, so annotations, _meta and
-// anything else a server adds never get further than this struct.
+// Tool is one tool as the server listed it. Only these fields are read, so _meta and anything else a
+// server adds never get further than this struct. Annotations are read for init and covered by the
+// pin; the gateway clears them before listing a tool, since they are hints from an untrusted server.
 type Tool struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitzero"`
 	InputSchema jsontext.Value `json:"inputSchema"`
+	Annotations jsontext.Value `json:"annotations,omitzero"`
 }
 
 // Server is one running MCP server.

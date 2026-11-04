@@ -36,21 +36,25 @@ import (
 // Decisions a record can hold.
 const (
 	Allow     = "allow"     // the call was forwarded
+	Ask       = "ask"       // a person is being asked about the call; Rule says why
 	Block     = "block"     // the call or its result was refused; Rule says why
 	Result    = "result"    // a forwarded call's result went to the client
 	Cancelled = "cancelled" // the call was cancelled, so no result was sent
 )
 
 // Record is one decision. It holds lengths and a keyed hash of the arguments, never their values,
-// so the log can be shared without sharing what the agent sent. Seq and Time are set when written.
+// so the log can be shared without sharing what the agent sent. Sources names the kinds of thing that
+// vouched for those values, such as "prompt" or "bound:note", and never a value. Seq and Time are set
+// when written.
 type Record struct {
-	Seq      uint64 `json:"seq"`
-	Time     string `json:"time"`
-	Tool     string `json:"tool"`
-	Decision string `json:"decision"`
-	Rule     string `json:"rule,omitzero"`
-	ArgLens  []int  `json:"arg_lens,omitzero"`
-	ArgsHMAC string `json:"args_hmac,omitzero"`
+	Seq      uint64   `json:"seq"`
+	Time     string   `json:"time"`
+	Tool     string   `json:"tool"`
+	Decision string   `json:"decision"`
+	Rule     string   `json:"rule,omitzero"`
+	Sources  []string `json:"sources,omitzero"`
+	ArgLens  []int    `json:"arg_lens,omitzero"`
+	ArgsHMAC string   `json:"args_hmac,omitzero"`
 }
 
 // Summary is what Verify found.
@@ -68,6 +72,7 @@ var ErrClosed = errors.New("audit log is closed")
 // each one chains onto the record truly before it.
 type Log struct {
 	key  []byte
+	lock *os.File // held until Close, or until the process ends however it ends
 	in   chan entry
 	stop chan struct{}
 	done chan struct{}
@@ -91,13 +96,41 @@ type entry struct {
 // Open starts the log in dir, creating the key and log files if needed. An existing log must verify
 // in full first. One that does not, including one with a torn last line, stops startup; it is never
 // repaired or truncated, because repairing evidence would destroy it.
+//
+// A state directory takes one gateway at a time. Two would fork the chain, and the log would then fail
+// every later start. The operating system drops the lock when the process ends, so a crash leaves
+// nothing to clean up.
 func Open(dir string) (*Log, error) {
+	lock, err := os.OpenFile(filepath.Join(dir, "lock"), os.O_WRONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := lockFile(lock); err != nil {
+		lock.Close()
+		return nil, fmt.Errorf("another gateway is using state directory %s: %w", dir, err)
+	}
+	l, err := open(dir)
+	if err != nil {
+		lock.Close()
+		return nil, err
+	}
+	l.lock = lock
+	go l.run()
+	return l, nil
+}
+
+func open(dir string) (*Log, error) {
 	path := filepath.Join(dir, "audit.log")
 	sum, err := Verify(path, "")
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("existing log %s failed verification and was left unchanged; move it aside to start a new one: %w", path, err)
 	}
-	key, err := loadKey(filepath.Join(dir, "audit.key"))
+	// A new key would leave the old digests matching nothing, with nobody told.
+	keyPath := filepath.Join(dir, "audit.key")
+	if _, err := os.Stat(keyPath); sum.Count > 0 && errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("log %s has records but its key is gone; move the log aside to start a new one", path)
+	}
+	key, err := loadKey(keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("audit key: %w", err)
 	}
@@ -111,10 +144,8 @@ func Open(dir string) (*Log, error) {
 		d.Sync()
 		d.Close()
 	}
-	l := &Log{key: key, in: make(chan entry), stop: make(chan struct{}), done: make(chan struct{}),
-		file: file, sync: file.Sync, sum: sum}
-	go l.run()
-	return l, nil
+	return &Log{key: key, in: make(chan entry), stop: make(chan struct{}), done: make(chan struct{}),
+		file: file, sync: file.Sync, sum: sum}, nil
 }
 
 // Append writes rec and returns once it is written, and fsynced if durable is set. Any failure is
@@ -162,6 +193,7 @@ func (l *Log) run() {
 			e.reply <- l.err
 		case <-l.stop:
 			l.err = errors.Join(l.err, l.sync(), l.file.Close())
+			l.lock.Close()
 			return
 		}
 	}
@@ -175,8 +207,8 @@ func (l *Log) write(e entry) error {
 		return err
 	}
 	line, hash := chain(l.sum.prev, rec)
-	// With two gateways on one state directory, each would chain onto a head the other has passed.
-	// Refusing to write when the file has moved keeps the log valid and blocks this gateway instead.
+	// The lock keeps other gateways out, but not an editor or a stray script. The next line would chain
+	// onto a head that is no longer the last, so if the file has moved, this gateway blocks instead.
 	info, err := l.file.Stat()
 	if err != nil {
 		return err

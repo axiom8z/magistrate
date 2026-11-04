@@ -7,10 +7,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/axiom8z/sayswho/internal/audit"
+	"github.com/axiom8z/sayswho/internal/policy"
 	"github.com/axiom8z/sayswho/internal/rpc"
 	"github.com/axiom8z/sayswho/test/fakemcp"
 )
@@ -19,7 +22,17 @@ import (
 // these tests write names it, which also exercises the environment allowlist end to end.
 const serverVar = "SAYSWHO_CMD_TEST_SERVER"
 
+// clientVar makes the test binary play the client for the run command. It prints its arguments as JSON
+// and exits with the code the variable holds.
+const clientVar = "SAYSWHO_CMD_TEST_CLIENT"
+
 func TestMain(m *testing.M) {
+	if code := os.Getenv(clientVar); code != "" {
+		raw, _ := json.Marshal(os.Args[1:])
+		fmt.Println(string(raw))
+		exit, _ := strconv.Atoi(code)
+		os.Exit(exit)
+	}
 	if os.Getenv(serverVar) != "" {
 		// Stray output on the server's stderr, which must never reach the client.
 		fmt.Fprintln(os.Stderr, "server chatter on stderr")
@@ -183,8 +196,8 @@ func TestServeRefusesToStart(t *testing.T) {
 	if err := os.WriteFile(bad, []byte(`{"mode":"pass","servers":{"a":{"command":"x"}},"typo":1}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	notPass := filepath.Join(dir, "value.json")
-	if err := os.WriteFile(notPass, []byte(`{"mode":"value","servers":{"a":{"command":"x"}}}`), 0o600); err != nil {
+	badMode := filepath.Join(dir, "mode.json")
+	if err := os.WriteFile(badMode, []byte(`{"mode":"strict","servers":{"a":{"command":"x"}}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	torn := t.TempDir()
@@ -208,7 +221,7 @@ func TestServeRefusesToStart(t *testing.T) {
 		{"unknown flag", []string{"serve", "--nope"}, exitUsage, "usage"},
 		{"missing policy file", []string{"serve", "--policy", filepath.Join(dir, "none"), "--state", dir}, exitUsage, "policy"},
 		{"bad policy", []string{"serve", "--policy", bad, "--state", dir}, exitUsage, "typo"},
-		{"a mode not built yet", []string{"serve", "--policy", notPass, "--state", dir}, exitUsage, "not available"},
+		{"an unknown mode", []string{"serve", "--policy", badMode, "--state", dir}, exitUsage, "not available"},
 		{"torn log", []string{"serve", "--policy", good, "--state", torn}, exitFailed, "failed verification"},
 		{"state path is a file", []string{"serve", "--policy", good, "--state", blocked}, exitFailed, "state directory"},
 	}
@@ -331,5 +344,153 @@ func TestVerifyCommand(t *testing.T) {
 				t.Error("a failure printed nothing")
 			}
 		})
+	}
+}
+
+// runRun drives the run command with this test binary as the client, which exits with clientCode.
+func runRun(t *testing.T, clientCode string, extra ...string) (code int, args []string, stderr string, dir string) {
+	t.Helper()
+	dir = t.TempDir()
+	prompt := filepath.Join(dir, "prompt.txt")
+	if err := os.WriteFile(prompt, []byte("-tell alice"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(clientVar, clientCode)
+	line := []string{"run", "--policy", writePolicy(t, dir), "--state", filepath.Join(dir, "state"), "--prompt-file", prompt, "--client", exe}
+	var out, errs bytes.Buffer
+	code = run(append(line, extra...), strings.NewReader(""), &out, &errs)
+	if out.Len() > 0 {
+		if err := json.Unmarshal(out.Bytes(), &args); err != nil {
+			t.Fatalf("the client printed %q: %v", out.String(), err)
+		}
+	}
+	return code, args, errs.String(), dir
+}
+
+// The client must get the gateway as its only MCP server, none of its own tools, and the prompt whole.
+func TestRunStartsTheClientWithOnlyTheGateway(t *testing.T) {
+	code, args, stderr, dir := runRun(t, "0", "--", "--model", "stub")
+	if code != exitOK {
+		t.Fatalf("exit %d: %s", code, stderr)
+	}
+	config := filepath.Join(dir, "state", "mcp-config.json")
+	want := []string{"--tools", "", "--strict-mcp-config", "--mcp-config", config, "--model", "stub", "--", "-tell alice"}
+	if !slices.Equal(args, want) {
+		t.Errorf("client arguments\n got %q\nwant %q", args, want)
+	}
+	raw, err := os.ReadFile(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	entry := parsed.MCPServers["sayswho"]
+	if len(parsed.MCPServers) != 1 || entry.Command == "" || entry.Args[0] != "serve" {
+		t.Fatalf("config = %s", raw)
+	}
+	for _, flag := range []string{"--policy", "--state", "--prompt-file"} {
+		at := slices.Index(entry.Args, flag)
+		if at < 0 || !filepath.IsAbs(entry.Args[at+1]) {
+			t.Errorf("%s is missing or not absolute: %q", flag, entry.Args)
+		}
+	}
+}
+
+func TestRunPassesOnTheClientsExitCode(t *testing.T) {
+	if code, _, stderr, _ := runRun(t, "7"); code != 7 {
+		t.Errorf("exit %d: %s", code, stderr)
+	}
+}
+
+func TestRunRefusesWhatCouldNotWork(t *testing.T) {
+	dir := t.TempDir()
+	good := writePolicy(t, dir)
+	prompt := filepath.Join(dir, "prompt.txt")
+	broken := filepath.Join(dir, "broken.txt")
+	os.WriteFile(prompt, []byte("hi"), 0o600)
+	os.WriteFile(broken, []byte("\xff"), 0o600)
+	state := filepath.Join(dir, "state")
+	tests := []struct {
+		name string
+		args []string
+		code int
+	}{
+		{"no prompt file", []string{"--policy", good, "--state", state}, exitUsage},
+		{"no state", []string{"--policy", good, "--prompt-file", prompt}, exitUsage},
+		{"no policy", []string{"--state", state, "--prompt-file", prompt}, exitUsage},
+		{"a missing prompt file", []string{"--policy", good, "--state", state, "--prompt-file", filepath.Join(dir, "nope")}, exitUsage},
+		{"a prompt that is not UTF-8", []string{"--policy", good, "--state", state, "--prompt-file", broken}, exitUsage},
+		{"a missing policy", []string{"--policy", filepath.Join(dir, "nope"), "--state", state, "--prompt-file", prompt}, exitUsage},
+		{"a client that can't start", []string{"--policy", good, "--state", state, "--prompt-file", prompt, "--client", filepath.Join(dir, "no-such-client")}, exitFailed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out, errs bytes.Buffer
+			if code := run(append([]string{"run"}, tt.args...), strings.NewReader(""), &out, &errs); code != tt.code {
+				t.Errorf("exit %d, want %d: %s", code, tt.code, errs.String())
+			}
+		})
+	}
+}
+
+// A draft has to load, name every tool with its pin, and work: the gateway must list what init pinned.
+func TestInitDraftsAPolicyTheGatewayCanServe(t *testing.T) {
+	dir := t.TempDir()
+	var drafted, errs bytes.Buffer
+	if code := run([]string{"init", "--policy", writePolicy(t, dir)}, strings.NewReader(""), &drafted, &errs); code != exitOK {
+		t.Fatalf("exit %d: %s", code, errs.String())
+	}
+	p, err := policy.Parse(drafted.Bytes())
+	if err != nil {
+		t.Fatalf("the draft does not load: %v\n%s", err, drafted.String())
+	}
+	tool, listed := p.Tools["echo__echo"]
+	if !listed || !strings.HasPrefix(tool.Pin, "sha256:") {
+		t.Fatalf("draft = %s", drafted.String())
+	}
+	if p.Mode != policy.ModeValue || p.AsksPerSession != draftAsks || tool.Output != policy.OutputUntrusted {
+		t.Errorf("draft = %s", drafted.String())
+	}
+	path := filepath.Join(dir, "drafted.json")
+	if err := os.WriteFile(path, drafted.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout, stderr := serveSession(t, []string{"--policy", path, "--state", filepath.Join(dir, "state")}, session, 4)
+	if code != exitOK {
+		t.Fatalf("exit %d: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, `"name":"echo__echo"`) {
+		t.Errorf("the gateway did not list what init pinned:\n%s", stdout)
+	}
+	// No prompt file and a clear latch, so this first call goes through, in the mode the draft chose.
+	if strings.Contains(stdout, "Blocked by SaysWho") {
+		t.Errorf("the call was blocked:\n%s", stdout)
+	}
+}
+
+func TestInitStopsWhenAServerFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "policy.json")
+	bad := `{"mode":"value","servers":{"gone":{"command":"` + filepath.ToSlash(filepath.Join(dir, "no-such-server")) + `"}}}`
+	if err := os.WriteFile(path, []byte(bad), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errs bytes.Buffer
+	if code := run([]string{"init", "--policy", path}, strings.NewReader(""), &out, &errs); code != exitFailed {
+		t.Fatalf("exit %d: %s", code, errs.String())
+	}
+	if out.Len() != 0 || !strings.Contains(errs.String(), `"gone"`) {
+		t.Errorf("stdout %q, stderr %q", out.String(), errs.String())
 	}
 }

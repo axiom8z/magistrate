@@ -3,6 +3,7 @@ package rpc
 import (
 	"bytes"
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"runtime"
@@ -131,6 +132,34 @@ func TestParseAccepts(t *testing.T) {
 	}
 }
 
+// What comes out holds U+FFFD and nothing that a strict decoder would refuse, so no later reader can
+// see the broken original.
+func TestParseRepairsBrokenCharacters(t *testing.T) {
+	tests := []struct{ name, line, want string }{
+		{"half an emoji, as JSON.stringify writes it", `{"jsonrpc":"2.0","method":"x","params":{"a":"cut \ud83d"}}`, "cut �"},
+		{"the other half", `{"jsonrpc":"2.0","method":"x","params":{"a":"\ude00 cut"}}`, "� cut"},
+		{"an invalid byte", "{\"jsonrpc\":\"2.0\",\"method\":\"x\",\"params\":{\"a\":\"cut \xff\"}}", "cut �"},
+		{"a whole emoji stays whole", `{"jsonrpc":"2.0","method":"x","params":{"a":"😀"}}`, "\U0001F600"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, err := Parse([]byte(tt.line))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var params struct {
+				A string `json:"a"`
+			}
+			if err := json.Unmarshal(m.Params, &params); err != nil {
+				t.Fatalf("a strict decoder refuses what came out: %v", err)
+			}
+			if params.A != tt.want {
+				t.Errorf("got %q, want %q", params.A, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseRejects(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -143,9 +172,7 @@ func TestParseRejects(t *testing.T) {
 		{"duplicate key", `{"jsonrpc":"2.0","id":1,"id":2,"method":"x"}`, false},
 		{"duplicate key inside params", `{"jsonrpc":"2.0","method":"x","params":{"a":1,"a":2}}`, false},
 		{"duplicate key spelled with an escape", "{\"jsonrpc\":\"2.0\",\"method\":\"x\",\"params\":{\"a\":1,\"\\u0061\":2}}", false},
-		{"invalid UTF-8 in a method", "{\"jsonrpc\":\"2.0\",\"method\":\"\xff\"}", false},
-		{"invalid UTF-8 inside params", "{\"jsonrpc\":\"2.0\",\"method\":\"x\",\"params\":{\"a\":\"\xc0\xaf\"}}", false},
-		{"lone surrogate", "{\"jsonrpc\":\"2.0\",\"method\":\"x\",\"params\":\"\\ud800\"}", false},
+		{"a broken character does not excuse a duplicate key", "{\"jsonrpc\":\"2.0\",\"method\":\"x\",\"params\":{\"a\":\"\\ud83d\",\"a\":\"b\"}}", false},
 		{"trailing data", `{"jsonrpc":"2.0","method":"x"} {"jsonrpc":"2.0","method":"y"}`, false},
 		{"nesting beyond the decoder's limit", `{"jsonrpc":"2.0","method":"x","params":` + strings.Repeat("[", 10001) + strings.Repeat("]", 10001) + `}`, false},
 		{"batch", `[{"jsonrpc":"2.0","id":1,"method":"x"}]`, true},
