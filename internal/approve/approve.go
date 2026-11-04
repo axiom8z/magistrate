@@ -118,6 +118,10 @@ func Prompt(tool string, findings []prov.Finding, args map[string]jsontext.Value
 			fmt.Fprintf(&b, "\n... and %d more values like these.", len(findings)-i)
 			break
 		}
+		if f.Rule == prov.RuleSensitive { // the registry says only yes or no, so no value is named here
+			b.WriteString("\nThis call holds a value from a tool labelled sensitive.")
+			continue
+		}
 		fmt.Fprintf(&b, "\n%s: %s is not in your request; %s.", Clean(f.Arg), shown(f.Value), firstSeen(f))
 	}
 	b.WriteString("\n\nThe whole call:")

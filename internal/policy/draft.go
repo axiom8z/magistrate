@@ -48,7 +48,8 @@ var (
 
 // Draft labels one tool for init. A draft is for a person to correct, so every guess it can't make is
 // the strict one: acts unless plainly a read, untrusted output, and a store named after the server,
-// so that marking a tool trusted fails lint until someone has thought about who writes it.
+// so that marking a tool trusted fails lint until someone has thought about who writes it. Sensitive
+// is the exception. A schema doesn't say what a tool returns, so that one is left to the reviewer.
 func Draft(server string, t upstream.Tool) (Tool, error) {
 	pin, err := Pin(t)
 	if err != nil {

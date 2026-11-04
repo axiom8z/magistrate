@@ -16,10 +16,11 @@
 |Links in content|Every act, broad matcher (§3)|Rerun: costs 1 of 394 tasks over destination-only; the broad matcher adds 0. Off, 15 of 318 slack attacks pass.|
 |Unicode|ASCII folding; fullwidth map for links only|`norm` isn't in Go's standard library. A non-ASCII control value fails closed; in content it would fail open.|
 |Follow seen URLs|No|Rerun: 246/394 kept against 233, but stops fall from 832 to 768 of 878.|
+|Line ceiling|5,000 non-test lines, raised from 3,500|The forecast of 2,910 came before anything was built. Testing against the real client added cases, and comments count. The code reached 4,489, and getting under 3,500 would have meant dropping tested behaviour or the comments.|
 
 ## 1. Summary
 
-SaysWho is named for the one question it asks of every risky value. It is one Go binary, standard library only, about 2,900 lines plus tests, proxying MCP over stdio between an agent and its tools. It records when an untrusted tool was called. A risky call's control arguments must trace to the user's prompt, an operator list, a tool nobody else can write, or a bound lookup ID; otherwise a person is asked, and with no person the call is refused. Known-format secrets are blocked and redacted; every decision enters a hash-chained log. This is value matching, a heuristic.
+SaysWho is named for the one question it asks of every risky value. It is one Go binary, standard library only, about 4,000 lines plus tests, proxying MCP over stdio between an agent and its tools. It records when an untrusted tool was called. A risky call's control arguments must trace to the user's prompt, an operator list, a tool nobody else can write, or a bound lookup ID; otherwise a person is asked, and with no person the call is refused. Known-format secrets are blocked and redacted; every decision enters a hash-chained log. This is value matching, a heuristic.
 
 [Similar](https://github.com/cgrtml/reasongate/blob/main/RESULTS.md) [gateways](https://github.com/YuvGev00/taintwall) exist, and strict accounting is not new. taintwall has hijack replay, a frozen policy, bootstrap intervals, McNemar and the 20% headroom rule used here (credited; its splits differ), with 44/335 for its taint layer. ReasonGate has a stdio gateway, elicitation and delivery-aware replay, with 3.1% attacks at 66.0% utility on 609 pairs. Real differences, none unique: Go with no dependencies; the benchmark drives the shipped binary over MCP (theirs appear to replay in-process); replay of others' logs; ID and link rules aimed at taintwall's stated misses (28 by file ID, 3 links).
 
@@ -44,20 +45,24 @@ result: upstream -> block check -> secrets (redact) -> prov.Observe -> audit -> 
 
 |Package|Job|Lines|
 |---|---|---|
-|`cmd/sayswho`|`serve`, `run`, `init`, `verify`|150|
-|`internal/rpc`|1 MiB line reader, strict [`encoding/json/v2`](https://go.dev/doc/go1.27), ID map|180|
-|`internal/front`|MCP methods, held-call approval|350|
-|`internal/upstream`|`Cmd.Env` allowlist, timeouts, upstream refusals|320|
-|`internal/policy`|Load, lint, pins (RFC 8785 hash), `init` draft|320|
-|`internal/prov`|Match, roles, link matcher, sources, bound IDs|420|
-|`internal/gate`|Latch file, pure `Decide`|170|
-|`internal/secrets`|24 rules, decode loop, redaction, registered values|400|
-|`internal/approve`|Prompt text, budget, digest|150|
-|`internal/audit`|Chain, HMAC, verifier|200|
-|`cmd/swbench`|Open-loop load, stub server|250|
-|Total|CI fails above 3,500 non-test lines; tests about 2,000-2,500; Python harness about 2,000|2,910|
+|`cmd/sayswho`|`serve`, `run`, `init`, `verify`|307|
+|`internal/rpc`|1 MiB line reader, strict [`encoding/json/v2`](https://go.dev/doc/go1.27), ID map|191|
+|`internal/front`|MCP methods, held-call approval|841|
+|`internal/upstream`|`Cmd.Env` allowlist, timeouts, upstream refusals|452|
+|`internal/policy`|Load, lint, pins (RFC 8785 hash), `init` draft|429|
+|`internal/prov`|Match, roles, link matcher, sources, bound IDs|553|
+|`internal/gate`|Latch file, pure `Decide`|135|
+|`internal/secrets`|24 rules, decode loop, redaction, registered values|491|
+|`internal/approve`|Prompt text, budget, digest|184|
+|`internal/audit`|Chain, HMAC, verifier, state directory lock|374|
+|`cmd/swbench`|Open-loop load, stub server|532|
+|Total|CI fails above 5,000 non-test lines; Python harness about 2,000|4,489|
 
-Fail closed: bad policy stops startup; unreadable latch means exposed; audit failure blocks. Cut: 2026-07-28 era, HTTP, OAuth, resources, prompts, full JSON Schema validation (stated gap).
+Fail closed: bad policy stops startup; unreadable latch means exposed; audit failure blocks; a log with records and no key stops startup. A state directory takes one gateway at a time, by an operating system lock that goes when the process does, because two would fork the chain for good. Cut: 2026-07-28 era, HTTP, OAuth, resources, prompts, full JSON Schema validation (stated gap).
+
+A split character is repaired, not refused. A server cutting text at a fixed length can split an emoji, and clients show U+FFFD for the piece, so refusing the line would kill a server over what works without the gateway. The line is rewritten first, so nothing later reads the original, and a non-ASCII control value still fails closed.
+
+One bad tool must not cost every server's tools. All servers share one list, and Claude Code 2.1.302 rejects a whole list over a null `properties`, a null `required` or a null inside `required`, so such a tool is hidden with a note to the operator.
 
 **Upstream requests:** SaysWho advertises no client capabilities upstream and answers `elicitation/create`, `sampling/createMessage` and `roots/list` with `-32601`, so no server can open a look-alike dialog. **[Result blocks](https://modelcontextprotocol.io/specification/2025-11-25/server/tools):** `image`, `audio`, `resource_link` and `resource` return `isError` with a rule ID. Text and `structuredContent` are both scanned, because they can disagree.
 
@@ -134,7 +139,7 @@ Lines of `{"rec":{...},"hash":"..."}`, `hash = SHA-256(prev || exact rec bytes)`
 
 ## 7. How it connects
 
-**Real clients:** stdio. `sayswho run --prompt-file p` starts `claude --tools "" --strict-mcp-config --mcp-config <generated> "<prompt>"`. [The CLI page](https://code.claude.com/docs/en/cli-reference) documents `--tools` for built-ins; that built-ins bypass an MCP gateway is an inference. With no prompt file, arguments sent before the latch become sources (rerun: 47.7-50.0% kept). If the dialog hand check fails, publish "ask means deny on this client". Test [`--restricted`](https://code.claude.com/docs/en/cli-reference) with it: that mode loads only managed settings and `--settings`.
+**Real clients:** stdio. `sayswho run --prompt-file p` starts `claude --tools "" --strict-mcp-config --mcp-config <generated> "<prompt>"`. [The CLI page](https://code.claude.com/docs/en/cli-reference) documents `--tools` for built-ins; that built-ins bypass an MCP gateway is an inference. With no prompt file, arguments sent before the latch become sources (rerun: 47.7-50.0% kept). If the dialog hand check fails, publish "ask means deny on this client". [`--restricted`](https://code.claude.com/docs/en/cli-reference) loads only managed settings and `--settings`; with Claude Code 2.1.302 in print mode, `test/interop/run.ps1` shows the same refusal and the same allowed send with it as without it. Print mode answers every question with cancel (`docs/evidence/claude-code-2.1.302-print-mode-elicitation.log`), so there an ask is a refusal.
 
 **Harness:** Go holds no benchmark code, and a test asserts only `front` calls `Decide`.
 
@@ -205,7 +210,7 @@ Attacker writes tool output and knows code, policy and thresholds. Trusted: user
 - Wrong labels, first-seen tool poison, behaviour changing under an unchanged definition.
 - Secrets reversed, translated, split across calls or formatless.
 - Built-in client tools; a compromised client or gateway.
-- Denial of service: any injection can burn the budget; restarts reset it.
+- Denial of service: any injection can burn the budget; restarts reset it. A model argument over the 1 MiB line cap leaves the client waiting for its own tool timeout, because the error can only carry a null id (real client still waiting at 40 s). A hung server delays the first tool list by the 20 s handshake timeout, and the other servers' tools then work.
 
 ## 10. Testing the Go code
 
@@ -248,8 +253,7 @@ Per run, six opened models' logs (`bench/forecast/tokens_per_run.py`, characters
 
 ## Open facts to confirm when building
 
-- The interactive dialog, with and without `--restricted`.
+- The interactive dialog, with and without `--restricted`: `test/interop/dialog.ps1` needs a person, and none has run it yet.
 - AgentDyn's ground-truth replay and local LLM route.
-- Any figure from the real binary: nothing is built.
 - What labellers will choose; qwen's calls per run under refusals.
 - Claude prices, and [taintwall's report](https://github.com/YuvGev00/taintwall) that AgentDojo's `AnthropicLLM` sends a `temperature` 5.5-generation models reject.

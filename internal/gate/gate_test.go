@@ -30,6 +30,14 @@ func TestDecideRows(t *testing.T) {
 		{"session: bad", Input{Mode: policy.ModeSession, Bad: rule}, Decision{Action: Block, Rule: rule}},
 		{"session: a bad read", Input{Mode: policy.ModeSession, Bad: rule, Read: true}, Decision{Action: Block, Rule: rule}},
 
+		// Row 2: a secret, or a scan over budget. There is no approval path, so asks left change nothing.
+		{"value: a secret", Input{Mode: policy.ModeValue, Secret: rule, HasPrompt: true, AsksLeft: 5}, Decision{Action: Block, Rule: rule}},
+		{"value: a secret in a read", Input{Mode: policy.ModeValue, Secret: rule, HasPrompt: true, Read: true, AsksLeft: 5}, Decision{Action: Block, Rule: rule}},
+		{"value: a secret, before the latch with no prompt", Input{Mode: policy.ModeValue, Secret: rule, AsksLeft: 5}, Decision{Action: Block, Rule: rule}},
+		{"session: a secret, before the latch", Input{Mode: policy.ModeSession, Secret: rule, AsksLeft: 5}, Decision{Action: Block, Rule: rule}},
+		{"row 1 comes first", Input{Mode: policy.ModeValue, Bad: "first", Secret: rule}, Decision{Action: Block, Rule: "first"}},
+		{"pass allows a secret, as no gateway would", Input{Mode: policy.ModePass, Secret: rule}, Decision{Action: Allow}},
+
 		// Row 3: a read, or no prompt file and a clear latch, when arguments become sources.
 		{"value: a read", Input{Mode: policy.ModeValue, HasPrompt: true, Read: true, Finding: rule}, Decision{Action: Allow}},
 		{"value: a read with no asks left", Input{Mode: policy.ModeValue, HasPrompt: true, Read: true, Refused: true}, Decision{Action: Allow}},

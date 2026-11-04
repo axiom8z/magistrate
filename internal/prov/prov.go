@@ -32,6 +32,7 @@ const (
 	RuleCredential = "credential-not-in-prompt"
 	RuleQuantity   = "quantity-invalid"
 	RuleLink       = "unsourced-link"
+	RuleSensitive  = "registered-sensitive-value"
 )
 
 const (
@@ -168,7 +169,8 @@ func (s *State) checkLeaf(r *Report, name string, arg policy.Arg, l leaf) {
 			return
 		}
 	}
-	// JSON null names nothing, and models send it for optional arguments they are leaving out.
+	// JSON null names nothing, and models send it for optional arguments they are leaving out. An empty
+	// string stays a value: to a server it can mean "all of them".
 	if l.kind != jsontext.KindNull {
 		r.controls++
 		s.need(r, name, l.text, s.source(l.text, arg.Bind), RuleControl)

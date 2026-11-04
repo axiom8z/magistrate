@@ -1,6 +1,8 @@
 package front
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"math/rand/v2"
@@ -18,6 +20,7 @@ import (
 	"github.com/axiom8z/sayswho/internal/policy"
 	"github.com/axiom8z/sayswho/internal/prov"
 	"github.com/axiom8z/sayswho/internal/rpc"
+	"github.com/axiom8z/sayswho/internal/secrets"
 	"github.com/axiom8z/sayswho/internal/upstream"
 	"github.com/axiom8z/sayswho/test/fakemcp"
 )
@@ -1270,4 +1273,132 @@ func TestRecordsNameTheirSources(t *testing.T) {
 	if len(recs) != 2 || !slices.Equal(recs[0].Sources, []string{"prompt"}) || recs[0].Decision != audit.Allow {
 		t.Fatalf("records = %+v", recs)
 	}
+}
+
+// fakeToken is shaped like a GitHub token and built at run time, so that no complete one sits in a file.
+func fakeToken() string { return "gh" + "p_" + "aB3dE6gH9jK2mN5pQ8sT1vW4yZ7bC0eF3hI6" }
+
+// A known-format secret is blocked wherever it sits in a call and whoever vouches for it, and no person
+// is asked, because DESIGN section 4 gives this row no approval path.
+func TestASecretInACallIsBlockedAndNobodyIsAsked(t *testing.T) {
+	token := fakeToken()
+	half := len(token) / 2
+	tools := map[string]fakeTool{
+		"read_any":  {`{"effect":"read"}`, textResult("mail")},
+		"send_mail": {`{"effect":"act","args":{"to":"control","cc":"control","body":"content"}}`, textResult("sent")},
+	}
+	tests := []struct{ name, tool, args string }{
+		{"in a read", "s__read_any", `{"q":"` + token + `"}`},
+		{"as a control value the prompt names", "s__send_mail", `{"to":"` + token + `"}`},
+		{"in free text", "s__send_mail", `{"body":"my token is ` + token + ` so keep it safe"}`},
+		{"as an argument name", "s__read_any", `{"` + token + `":1}`},
+		{"base64 encoded", "s__send_mail", `{"body":"` + base64.StdEncoding.EncodeToString([]byte(token)) + `"}`},
+		{"hex encoded", "s__send_mail", `{"body":"` + hex.EncodeToString([]byte(token)) + `"}`},
+		{"split across two arguments", "s__send_mail", `{"to":"` + token[:half] + `","cc":"` + token[half:] + `"}`},
+		{"written with JSON escapes", "s__send_mail", `{"body":"g` + token[1:] + `"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, srv := guard{prompt: "tell " + token, tools: tools}.start(t)
+			result, question := s.attempt(1, tt.tool, tt.args, yes)
+			wantBlocked(t, result, "github-token")
+			if question != "" {
+				t.Errorf("a person was asked: %q", question)
+			}
+			wantForwarded(t, srv)
+			recs := s.records()
+			if len(recs) != 1 || recs[0].Decision != audit.Block || recs[0].Rule != "github-token" {
+				t.Errorf("records = %+v", recs)
+			}
+		})
+	}
+}
+
+// A scan that can't finish counts as a hit: nobody can tell what the rest of the call held.
+func TestACallTooEncodedToScanIsBlocked(t *testing.T) {
+	s, srv := guard{prompt: "tell alice", tools: mailTools}.start(t)
+	text := strings.Repeat("abcdefghijklmnopqrstuvwx ", 30000)
+	result, question := s.attempt(1, "s__send_mail", `{"body":"`+text+`"}`, yes)
+	wantBlocked(t, result, secrets.RuleOverBudget)
+	if question != "" {
+		t.Errorf("a person was asked: %q", question)
+	}
+	wantForwarded(t, srv)
+}
+
+// A result is cleaned before the client reads it and before provenance learns from it. Numbers keep
+// their spelling, because only strings are rewritten.
+func TestResultsAreRedactedBeforeAnyoneReadsThem(t *testing.T) {
+	token := fakeToken()
+	escaped := `g` + token[1:]
+	result := `{"content":[{"type":"text","text":"your token is ` + token + ` ok"},{"type":"text","text":"and ` + escaped + `"}],` +
+		`"structuredContent":{"n":1.50,"a":["` + escaped + `"],"plain":"stays"}}`
+	s, _ := guard{prompt: "tell alice", tools: map[string]fakeTool{"read_mail": {`{"effect":"read"}`, result}}}.start(t)
+	got, _ := s.attempt(1, "s__read_mail", `{}`, no)
+	wantAllowed(t, got)
+	if strings.Contains(got, token) || strings.Contains(got, token[1:]) {
+		t.Errorf("the token got through: %s", got)
+	}
+	for _, want := range []string{"your token is [REDACTED:github-token] ok", "and [REDACTED:github-token]", `"a":["[REDACTED:github-token]"]`, `"n":1.50`, `"plain":"stays"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the result lacks %s: %s", want, got)
+		}
+	}
+	recs := s.records()
+	if last := recs[len(recs)-1]; last.Decision != audit.Result || last.Rule != "github-token" {
+		t.Errorf("the log does not say so: %+v", last)
+	}
+	if data, _ := os.ReadFile(filepath.Join(s.dir, "audit.log")); strings.Contains(string(data), token[4:]) {
+		t.Errorf("the token reached the log: %s", data)
+	}
+}
+
+// Two member names that redact alike can't be written back, so the result is refused, not mangled.
+func TestAResultThatCannotBeRewrittenIsBlocked(t *testing.T) {
+	first, second := fakeToken(), fakeToken()+"x"
+	result := `{"content":[],"structuredContent":{"` + first + `":1,"` + second + `":2}}`
+	s, _ := guard{prompt: "tell alice", tools: map[string]fakeTool{"read_mail": {`{"effect":"read"}`, result}}}.start(t)
+	got, _ := s.attempt(1, "s__read_mail", `{}`, no)
+	wantBlocked(t, got, ruleResultMalformed)
+}
+
+// Pass mode has to equal no gateway at all, so it neither blocks nor rewrites.
+func TestPassModeScansNothing(t *testing.T) {
+	token := fakeToken()
+	tools := map[string]fakeTool{"read_mail": {`{"effect":"read"}`, textResult("your token is " + token)}}
+	s, srv := guard{mode: policy.ModePass, tools: tools}.start(t)
+	got, _ := s.attempt(1, "s__read_mail", `{"q":"`+token+`"}`, no)
+	if !strings.Contains(got, token) {
+		t.Errorf("result = %s", got)
+	}
+	wantForwarded(t, srv, `read_mail {"q":"`+token+`"}`)
+}
+
+// What a sensitive tool returned can't leave without a person seeing it, even with every control value
+// sourced. Values from other tools are not held up, and a read isn't either, since it reaches no one.
+func TestAValueFromASensitiveToolAsks(t *testing.T) {
+	tools := map[string]fakeTool{
+		"get_card":  {`{"effect":"read","sensitive":true}`, textResult("card 4000 1234 5678 9010 for alice")},
+		"get_order": {`{"effect":"read"}`, textResult("order 7654321")},
+		"send_mail": {`{"effect":"act","args":{"to":"control","body":"content"}}`, textResult("sent")},
+	}
+	s, srv := guard{prompt: "tell alice@corp.example", tools: tools}.start(t)
+	s.attempt(1, "s__get_card", `{}`, no)
+	s.attempt(2, "s__get_order", `{}`, no)
+	result, question := s.attempt(3, "s__send_mail", `{"to":"alice@corp.example","body":"order 7654321"}`, no)
+	wantAllowed(t, result)
+	if question != "" {
+		t.Errorf("a value from another tool asked: %q", question)
+	}
+	result, question = s.attempt(4, "s__send_mail", `{"to":"alice@corp.example","body":"card 4000-1234-5678-9010"}`, no)
+	wantBlocked(t, result, approve.RuleDeclined)
+	if !strings.Contains(question, "labelled sensitive") {
+		t.Errorf("the question does not say why: %q", question)
+	}
+	result, question = s.attempt(5, "s__get_order", `{"q":"4000123456789010"}`, no)
+	wantAllowed(t, result)
+	if question != "" {
+		t.Errorf("a read asked: %q", question)
+	}
+	wantForwarded(t, srv, `get_card {}`, `get_order {}`, `send_mail {"to":"alice@corp.example","body":"order 7654321"}`, `get_order {"q":"4000123456789010"}`)
 }

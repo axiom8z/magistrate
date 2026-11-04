@@ -61,7 +61,7 @@ func TestLintRejects(t *testing.T) {
 		{"binds with an empty path", oneTool(`{"effect":"read","binds":{"path":"","kind":"k"}}`), "bad path"},
 		{"binds with a stray dot", oneTool(`{"effect":"read","binds":{"path":"r..id","kind":"k"}}`), "bad path"},
 		{"an unknown key in binds", oneTool(`{"effect":"read","binds":{"path":"r.id","kind":"k","extra":1}}`), "extra"},
-		{"an unknown tool key", oneTool(`{"effect":"read","sensitive":true}`), "sensitive"},
+		{"an unknown tool key", oneTool(`{"effect":"read","secret":true}`), "secret"},
 		{"no effect", oneTool(`{}`), "effect"},
 		{"an unknown effect", oneTool(`{"effect":"write"}`), "write"},
 		{"an unknown output", oneTool(`{"effect":"read","output":"maybe"}`), "maybe"},

@@ -1,11 +1,13 @@
 package front
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"slices"
 	"strings"
@@ -17,6 +19,7 @@ import (
 	"github.com/axiom8z/sayswho/internal/policy"
 	"github.com/axiom8z/sayswho/internal/prov"
 	"github.com/axiom8z/sayswho/internal/rpc"
+	"github.com/axiom8z/sayswho/internal/secrets"
 	"github.com/axiom8z/sayswho/internal/upstream"
 )
 
@@ -46,26 +49,31 @@ const (
 // ruleText is what the model reads about a block. It is all our own wording, and no text from a
 // server or from the call goes into it, so a block can't be made to say anything else.
 var ruleText = map[string]string{
-	ruleUnknownTool:       "no tool has that name.",
-	ruleUpstreamDead:      "the server behind this tool has stopped and will not restart in this session.",
-	ruleUpstreamTimeout:   "the server did not answer in time.",
-	ruleUpstreamError:     "the server answered with an error. Its text is not shown, because server text is untrusted.",
-	ruleResultBlockType:   "the result held a block that is not text, such as an image or a resource, and only text is let through.",
-	ruleResultMalformed:   "the server's result was malformed.",
-	ruleAuditFailed:       "the audit log cannot be written, so no call can go through.",
-	ruleTooManyCalls:      "too many calls are running at once. Try again when one finishes.",
-	ruleNotInPolicy:       "the policy does not name this tool, so it can't be used.",
-	rulePinMismatch:       "this tool's definition is not the one the policy pinned, so it can't be used until an operator has reviewed it.",
-	ruleUnknownArgument:   "the call has an argument the policy does not list for this tool.",
-	ruleLatchFailed:       "the gateway can't record its state, so no call can go through.",
-	gate.RuleBudget:       "a value in this call did not come from the user, and this session has no approvals left to ask for.",
-	gate.RuleRefused:      "a person already refused this same call in this session.",
-	approve.RuleDeclined:  "a value in this call did not come from the user, and a person declined it.",
-	approve.RuleCancelled: "a value in this call did not come from the user, and the question to a person was dismissed.",
-	approve.RuleTimeout:   "a value in this call did not come from the user, and nobody answered in time.",
-	approve.RuleMalformed: "a value in this call did not come from the user, and the answer from the client could not be read.",
-	approve.RuleNoDialog:  "a value in this call did not come from the user, and this client can't ask a person.",
+	ruleUnknownTool:        "no tool has that name.",
+	ruleUpstreamDead:       "the server behind this tool has stopped and will not restart in this session.",
+	ruleUpstreamTimeout:    "the server did not answer in time.",
+	ruleUpstreamError:      "the server answered with an error. Its text is not shown, because server text is untrusted.",
+	ruleResultBlockType:    "the result held a block that is not text, such as an image or a resource, and only text is let through.",
+	ruleResultMalformed:    "the server's result was malformed.",
+	ruleAuditFailed:        "the audit log cannot be written, so no call can go through.",
+	ruleTooManyCalls:       "too many calls are running at once. Try again when one finishes.",
+	ruleNotInPolicy:        "the policy does not name this tool, so it can't be used.",
+	rulePinMismatch:        "this tool's definition is not the one the policy pinned, so it can't be used until an operator has reviewed it.",
+	ruleUnknownArgument:    "the call has an argument the policy does not list for this tool.",
+	ruleLatchFailed:        "the gateway can't record its state, so no call can go through.",
+	gate.RuleBudget:        "a value in this call did not come from the user, and this session has no approvals left to ask for.",
+	gate.RuleRefused:       "a person already refused this same call in this session.",
+	approve.RuleDeclined:   "a value in this call did not come from the user, and a person declined it.",
+	approve.RuleCancelled:  "a value in this call did not come from the user, and the question to a person was dismissed.",
+	approve.RuleTimeout:    "a value in this call did not come from the user, and nobody answered in time.",
+	approve.RuleMalformed:  "a value in this call did not come from the user, and the answer from the client could not be read.",
+	approve.RuleNoDialog:   "a value in this call did not come from the user, and this client can't ask a person.",
+	secrets.RuleOverBudget: "this call holds more encoded text than can be checked for credentials, and no approval can let it through.",
 }
+
+// secretText is what the model reads for every secret rule, which have no entry above. A block for a
+// credential is the one that no person can approve.
+const secretText = "this call holds what looks like a credential, and no approval can let it through."
 
 type textBlock struct {
 	Type string `json:"type"`
@@ -83,8 +91,12 @@ type toolResult struct {
 // blocked is the result a model reads when something is refused. A block is a normal isError result
 // and not a protocol error, because clients show those to the model, which can then adapt.
 func blocked(rule string) jsontext.Value {
+	text, known := ruleText[rule]
+	if !known {
+		text = secretText
+	}
 	raw, _ := json.Marshal(toolResult{ // cannot fail: these are our own constant strings
-		Content: []textBlock{{"text", "Blocked by SaysWho, rule " + rule + ": " + ruleText[rule]}},
+		Content: []textBlock{{"text", "Blocked by SaysWho, rule " + rule + ": " + text}},
 		IsError: true,
 	})
 	return raw
@@ -258,7 +270,12 @@ func (g *Gateway) decide(c *call) gate.Decision {
 			in.Bad = ruleUnknownArgument
 		}
 	}
+	leaves := prov.Strings(c.args)
+	in.Secret = secrets.ScanCall(leaves)
 	c.report = g.prov.Check(c.label, c.fields)
+	if !in.Read && g.sensitive.Contains(leaves) {
+		c.report.Findings = append(c.report.Findings, prov.Finding{Rule: prov.RuleSensitive})
+	}
 	if len(c.report.Findings) > 0 {
 		in.Finding = c.report.Findings[0].Rule
 	}
@@ -438,6 +455,10 @@ func (g *Gateway) forward(ctx context.Context, c *call) {
 	}
 	raw, callErr := c.server.Call(ctx, c.tool, c.args)
 	result, rule := g.outcome(c.server, raw, callErr)
+	var redacted string
+	if rule == "" && callErr == nil && g.policy.Mode != policy.ModePass {
+		result, redacted, rule = redact(result)
+	}
 	cancelled := ctx.Err() != nil
 	switch {
 	case cancelled:
@@ -446,7 +467,7 @@ func (g *Gateway) forward(ctx context.Context, c *call) {
 		rec.Decision, rec.Rule = audit.Block, rule
 		result = blocked(rule)
 	default:
-		rec.Decision = audit.Result
+		rec.Decision, rec.Rule = audit.Result, redacted
 		g.observe(c, result)
 	}
 	err := g.audit.Append(rec, rec.Decision == audit.Block)
@@ -475,6 +496,68 @@ func (g *Gateway) observe(c *call, result jsontext.Value) {
 		seen.Texts = append(seen.Texts, block.Text)
 	}
 	g.prov.Observe(c.name, c.label, c.fields, seen)
+	if c.label.Sensitive {
+		for _, text := range append(seen.Texts, prov.Strings(seen.Structured)...) {
+			g.sensitive.Register(text)
+		}
+	}
+}
+
+// redact cleans a rebuilt result of known-format secrets before anyone reads it (DESIGN section 5),
+// since a model can't re-encode what it never saw. It returns the result to send, the first secret
+// rule that fired, and the rule blocking the result if it can't be rewritten.
+func redact(result jsontext.Value) (cleaned jsontext.Value, fired, block string) {
+	var res toolResult
+	json.Unmarshal(result, &res) // cannot fail: rebuild wrote it from this type
+	var ids []string
+	for i, b := range res.Content {
+		text, found := secrets.Redact(b.Text)
+		res.Content[i].Text = text
+		ids = append(ids, found...)
+	}
+	structured, found, err := redactJSON(res.StructuredContent)
+	if err != nil {
+		return nil, "", ruleResultMalformed
+	}
+	if ids = append(ids, found...); len(ids) == 0 {
+		return result, "", ""
+	}
+	res.StructuredContent = structured
+	cleaned, err = json.Marshal(res)
+	if err != nil {
+		return nil, "", ruleResultMalformed
+	}
+	return cleaned, ids[0], ""
+}
+
+// redactJSON rewrites only the strings in a JSON value, token by token, so its numbers stay as written.
+// It reads decoded strings, because an escape like g would hide a secret from a look at the raw
+// bytes and not from the client. Two member names that redact alike make the rewrite fail, which is
+// why it can return an error.
+func redactJSON(raw jsontext.Value) (jsontext.Value, []string, error) {
+	if raw == nil {
+		return nil, nil, nil
+	}
+	var out bytes.Buffer
+	var ids []string
+	dec, enc := jsontext.NewDecoder(bytes.NewReader(raw)), jsontext.NewEncoder(&out)
+	for {
+		tok, err := dec.ReadToken()
+		if errors.Is(err, io.EOF) {
+			return bytes.TrimSpace(out.Bytes()), ids, nil
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		if tok.Kind() == jsontext.KindString {
+			if text, found := secrets.Redact(tok.String()); len(found) > 0 {
+				tok, ids = jsontext.String(text), append(ids, found...)
+			}
+		}
+		if err := enc.WriteToken(tok); err != nil {
+			return nil, nil, err
+		}
+	}
 }
 
 // finish drops the call from the in-flight table. It runs before the reply goes out, so a client that

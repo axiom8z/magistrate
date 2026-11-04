@@ -478,6 +478,24 @@ func TestEOFStopsTheServersAndClosesTheLog(t *testing.T) {
 	})
 }
 
+// A client can leave while a server is still in its handshake. That server must not outlive the session,
+// and Serve must not read the server table while the handshake can still write to it, which is what the
+// race detector looks at here.
+func TestAClientLeavingDuringAHandshakeStopsThatServer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		held := server("held", fakemcp.On("initialize", func(*fakemcp.Conn, *rpc.Message) {}))
+		s := newSession(t, held)
+		synctest.Wait()
+		s.close()
+		if s.err != nil {
+			t.Errorf("Serve = %v", s.err)
+		}
+		if !held.pipe.Killed() {
+			t.Error("the session ended with its server still running")
+		}
+	})
+}
+
 func TestEOFWithACallInFlightEndsItWithNoReply(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		be := server("s", fakemcp.On("tools/call", func(*fakemcp.Conn, *rpc.Message) {}))

@@ -79,6 +79,7 @@ type Tool struct {
 	Output       string         `json:"output,omitzero"`
 	Store        string         `json:"store,omitzero"`
 	Irreversible bool           `json:"irreversible,omitzero"`
+	Sensitive    bool           `json:"sensitive,omitzero"` // returns credentials, ID or card numbers
 	Pin          string         `json:"pin"`
 	Args         map[string]Arg `json:"args,omitzero"`
 	Binds        *Binds         `json:"binds,omitzero"`

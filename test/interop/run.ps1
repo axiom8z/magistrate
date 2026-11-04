@@ -1,5 +1,6 @@
 # Drives the real Claude Code client through the gateway, with no model and no paid API, then checks
-# the audit log and what reached the server. This is the runnable end of milestones 1 to 3.
+# the audit log and what reached the server. This is the runnable end of milestones 1 to 3, plus the
+# secret scanner of milestone 5.
 #
 #     pwsh -NoProfile -File test/interop/run.ps1
 #
@@ -62,12 +63,12 @@ function Invoke-Client([string]$name, [string]$file, [string[]]$arguments, [int]
 
 # Milestone 3's flow: the model reads the inbox, then sends to $to. The prompt file says what the user
 # asked for, a stub model of its own plays the two calls, and "sayswho run" starts the real client.
-function Invoke-MailFlow([string]$name, [string]$prompt, [string]$to, [string[]]$clientFlags = @()) {
+function Invoke-MailFlow([string]$name, [string]$prompt, [string]$to, [string[]]$clientFlags = @(), [string]$body = 'the report') {
     $promptFile = Join-Path $work "$name.prompt"
     [IO.File]::WriteAllText($promptFile, $prompt)
     $steps = Join-Path $work "$name.steps"
     [IO.File]::WriteAllText($steps, '[{"tool":"mcp__sayswho__mail__read_inbox","input":{}},' +
-        '{"tool":"mcp__sayswho__mail__send_mail","input":{"to":"' + $to + '","body":"the report"}}]')
+        '{"tool":"mcp__sayswho__mail__send_mail","input":{"to":"' + $to + '","body":"' + $body + '"}}]')
     $flowPort = Join-Path $work "$name.port"
     $flowStub = Start-Process -FilePath $model -NoNewWindow -PassThru `
         -ArgumentList ('-log "{0}" -portfile "{1}" -steps "{2}"' -f (Join-Path $work "$name.model.log"), $flowPort, $steps) `
@@ -243,6 +244,18 @@ try {
     Check 'with --restricted, an unnamed recipient is still refused' (-not (Read-Text $sends).Contains('mallory')) (Read-Text $sends)
     $modelSaw = Read-Text (Join-Path $work 'restricted-refused.model.log')
     Check 'with --restricted, the model still sees no built-in tools and the rule ID' (($modelSaw -match 'Blocked by SaysWho') -and ($modelSaw -notmatch 'builtinTools=true')) $modelSaw
+
+    # Milestone 5: a known-format secret is blocked with nobody asked, even going to a named recipient.
+    # The token is fake and built here, so that no complete one sits in a file.
+    Write-Output '--- sayswho run: a credential in a send'
+    $token = 'gh' + 'p_' + [guid]::NewGuid().ToString('N') + 'aB3dE6'
+    $code = Invoke-MailFlow 'secret' 'Summarize my inbox and tell carol@corp.example what it says.' 'carol@corp.example' @() "my token is $token"
+    $modelSaw = Read-Text (Join-Path $work 'secret.model.log')
+    $logText = Read-Text (Join-Path (Join-Path $work 'secret-state') 'audit.log')
+    Check 'the secret rule reached the model' ($modelSaw -match 'Blocked by SaysWho, rule github-token') $modelSaw
+    Check 'the server never received that send' (-not (Read-Text $sends).Contains('carol')) (Read-Text $sends)
+    Check 'nobody was asked about it' ($logText -notmatch '"decision":"ask"') $logText
+    Check 'the token is not in the log' (-not $logText.Contains($token))
 
     # Nothing of ours may still be running: the client ended the gateway and the gateway ended the server.
     Start-Sleep -Milliseconds 500

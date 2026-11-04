@@ -34,6 +34,7 @@ const (
 type Input struct {
 	Mode      string
 	Bad       string // the rule, if the call fails before its values matter: unknown argument and so on
+	Secret    string // the secret rule that fired, or "": no person can approve this one
 	Read      bool
 	HasPrompt bool
 	Exposed   bool   // the latch, which is looked at only with no prompt file and in session mode
@@ -52,14 +53,16 @@ type Decision struct {
 }
 
 // Decide is the first-match table of DESIGN section 4. A mode it does not know is treated as value,
-// the strict one, though policy lint should make that impossible. The row for secrets joins this
-// table when secret scanning does.
+// the strict one, though policy lint should make that impossible.
 func Decide(in Input) Decision {
 	if in.Mode == policy.ModePass {
 		return Decision{Action: Allow}
 	}
 	if in.Bad != "" {
 		return Decision{Action: Block, Rule: in.Bad}
+	}
+	if in.Secret != "" {
+		return Decision{Action: Block, Rule: in.Secret}
 	}
 	session := in.Mode == policy.ModeSession
 	// With a prompt file in value mode the latch is not read at all: each value answers for itself,

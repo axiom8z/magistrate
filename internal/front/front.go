@@ -17,6 +17,7 @@ import (
 	"github.com/axiom8z/sayswho/internal/policy"
 	"github.com/axiom8z/sayswho/internal/prov"
 	"github.com/axiom8z/sayswho/internal/rpc"
+	"github.com/axiom8z/sayswho/internal/secrets"
 	"github.com/axiom8z/sayswho/internal/upstream"
 )
 
@@ -38,6 +39,8 @@ type Gateway struct {
 	prov   *prov.State
 	latch  *gate.Latch
 	budget *approve.Budget
+	// sensitive holds the values seen in the output of tools labelled sensitive.
+	sensitive *secrets.Registry
 	// hasPrompt says whether a prompt file was given.
 	hasPrompt bool
 
@@ -64,7 +67,7 @@ func New(auditLog *audit.Log, notes *log.Logger, cfg Config) *Gateway {
 	p := cfg.Policy
 	return &Gateway{audit: auditLog, notes: notes, policy: p, hasPrompt: cfg.HasPrompt,
 		prov: prov.New(cfg.Prompt, p.TrustedValues, p.BoundIDs), latch: gate.NewLatch(cfg.StateDir),
-		budget: approve.NewBudget(p.AsksPerSession), ready: make(chan struct{}),
+		budget: approve.NewBudget(p.AsksPerSession), sensitive: secrets.NewRegistry(), ready: make(chan struct{}),
 		servers: map[string]*upstream.Server{}, listed: map[string]bool{}, hidden: map[string]string{},
 		inflight: map[string]context.CancelFunc{}, questions: map[string]chan *rpc.Message{}}
 }

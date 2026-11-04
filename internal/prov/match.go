@@ -118,6 +118,22 @@ func leaves(raw jsontext.Value) []leaf {
 	}
 }
 
+// Strings returns what the secret scanner reads from JSON: strings and numbers in document order, then
+// member names. Values come first and together, so that the scanner's join of them can catch a secret
+// split across sibling values with no name in the middle of it.
+func Strings(raw jsontext.Value) []string {
+	var values, names []string
+	for _, l := range leaves(raw) {
+		switch l.kind {
+		case kindName:
+			names = append(names, l.text)
+		case jsontext.KindString, jsontext.KindNumber:
+			values = append(values, l.text)
+		}
+	}
+	return append(values, names...)
+}
+
 // foldWide maps fullwidth forms to ASCII and drops invisible format characters, for the link matcher
 // only. Without it a link in content would fail open, by not looking like a link at all.
 func foldWide(s string) string {
