@@ -1,0 +1,85 @@
+round 1 1KB 100/s direct n=1800 failed=0 late=0 p50=0.029 p99=0.058 max=0.089 cold=4.001
+round 1 1KB 100/s gateway n=1800 failed=0 late=0 p50=0.219 p99=0.463 max=10.728 cold=21.877
+round 1 1KB 500/s direct n=9000 failed=0 late=0 p50=0.023 p99=0.048 max=1.463 cold=3.488
+round 1 1KB 500/s gateway n=9000 failed=0 late=0 p50=0.171 p99=0.330 max=10.717 cold=22.022
+round 1 16KB 100/s direct n=1800 failed=0 late=0 p50=0.034 p99=0.065 max=0.136 cold=3.392
+round 1 16KB 100/s gateway n=1800 failed=0 late=0 p50=0.540 p99=0.885 max=10.996 cold=21.591
+round 1 16KB 500/s direct n=9000 failed=0 late=0 p50=0.029 p99=0.054 max=1.205 cold=3.502
+round 1 16KB 500/s gateway n=9000 failed=0 late=0 p50=0.474 p99=0.810 max=11.392 cold=16.265
+round 1 256KB 100/s direct n=1800 failed=0 late=0 p50=0.059 p99=0.130 max=0.514 cold=3.304
+round 1 256KB 100/s gateway n=1800 failed=0 late=0 p50=5.337 p99=6.352 max=16.082 cold=22.386
+round 1 256KB 500/s direct n=9000 failed=0 late=0 p50=0.077 p99=0.123 max=1.176 cold=3.660
+round 1 256KB 500/s gateway n=9000 failed=0 late=0 p50=5.632 p99=9.168 max=29.474 cold=21.550
+round 2 1KB 100/s gateway n=1800 failed=0 late=0 p50=0.201 p99=0.378 max=10.843 cold=11.647
+round 2 1KB 100/s direct n=1800 failed=0 late=0 p50=0.030 p99=0.060 max=0.442 cold=3.412
+round 2 1KB 500/s gateway n=9000 failed=0 late=0 p50=0.176 p99=0.304 max=10.849 cold=10.832
+round 2 1KB 500/s direct n=9000 failed=0 late=0 p50=0.023 p99=0.048 max=0.714 cold=3.574
+round 2 16KB 100/s gateway n=1800 failed=0 late=0 p50=0.543 p99=0.868 max=10.891 cold=21.477
+round 2 16KB 100/s direct n=1800 failed=0 late=0 p50=0.042 p99=0.070 max=0.103 cold=3.575
+round 2 16KB 500/s gateway n=9000 failed=0 late=0 p50=0.495 p99=0.847 max=11.021 cold=21.737
+round 2 16KB 500/s direct n=9000 failed=0 late=0 p50=0.029 p99=0.055 max=1.615 cold=3.595
+round 2 256KB 100/s gateway n=1800 failed=0 late=0 p50=5.343 p99=6.865 max=16.095 cold=22.349
+round 2 256KB 100/s direct n=1800 failed=0 late=1 p50=0.092 p99=0.140 max=1.754 cold=3.564
+round 2 256KB 500/s gateway n=9000 failed=0 late=0 p50=5.629 p99=8.581 max=16.809 cold=21.855
+round 2 256KB 500/s direct n=9000 failed=0 late=0 p50=0.079 p99=0.120 max=2.293 cold=3.360
+round 3 1KB 100/s direct n=1800 failed=0 late=0 p50=0.030 p99=0.063 max=0.206 cold=3.810
+round 3 1KB 100/s gateway n=1800 failed=0 late=0 p50=0.203 p99=0.463 max=10.155 cold=21.562
+round 3 1KB 500/s direct n=9000 failed=0 late=0 p50=0.023 p99=0.047 max=0.992 cold=3.595
+round 3 1KB 500/s gateway n=9000 failed=0 late=1 p50=0.175 p99=0.290 max=10.857 cold=22.666
+round 3 16KB 100/s direct n=1800 failed=0 late=0 p50=0.035 p99=0.070 max=0.132 cold=3.374
+round 3 16KB 100/s gateway n=1800 failed=0 late=0 p50=0.543 p99=0.870 max=10.845 cold=21.435
+round 3 16KB 500/s direct n=9000 failed=0 late=0 p50=0.029 p99=0.053 max=0.808 cold=3.593
+round 3 16KB 500/s gateway n=9000 failed=0 late=0 p50=0.502 p99=0.848 max=11.192 cold=22.724
+round 3 256KB 100/s direct n=1800 failed=0 late=0 p50=0.063 p99=0.142 max=1.612 cold=3.534
+round 3 256KB 100/s gateway n=1800 failed=0 late=0 p50=5.355 p99=6.746 max=15.732 cold=21.340
+round 3 256KB 500/s direct n=9000 failed=0 late=0 p50=0.078 p99=0.127 max=2.174 cold=3.683
+round 3 256KB 500/s gateway n=9000 failed=0 late=0 p50=5.624 p99=7.638 max=17.570 cold=21.197
+round 4 1KB 100/s gateway n=1800 failed=0 late=0 p50=0.204 p99=0.523 max=9.485 cold=10.853
+round 4 1KB 100/s direct n=1800 failed=0 late=0 p50=0.029 p99=0.059 max=0.076 cold=3.384
+round 4 1KB 500/s gateway n=9000 failed=0 late=0 p50=0.176 p99=0.291 max=10.759 cold=22.223
+round 4 1KB 500/s direct n=9000 failed=0 late=0 p50=0.023 p99=0.047 max=0.257 cold=3.574
+round 4 16KB 100/s gateway n=1800 failed=0 late=0 p50=0.528 p99=0.916 max=11.201 cold=21.565
+round 4 16KB 100/s direct n=1800 failed=0 late=0 p50=0.036 p99=0.073 max=0.256 cold=3.454
+round 4 16KB 500/s gateway n=9000 failed=0 late=0 p50=0.506 p99=0.882 max=10.962 cold=21.841
+round 4 16KB 500/s direct n=9000 failed=0 late=0 p50=0.029 p99=0.054 max=2.120 cold=3.575
+round 4 256KB 100/s gateway n=1800 failed=0 late=0 p50=5.325 p99=6.504 max=15.846 cold=21.575
+round 4 256KB 100/s direct n=1800 failed=0 late=0 p50=0.064 p99=0.145 max=0.246 cold=3.370
+round 4 256KB 500/s gateway n=9000 failed=0 late=1 p50=5.668 p99=10.092 max=16.803 cold=21.346
+round 4 256KB 500/s direct n=9000 failed=0 late=0 p50=0.080 p99=0.128 max=1.153 cold=3.666
+round 5 1KB 100/s direct n=1800 failed=0 late=0 p50=0.028 p99=0.059 max=0.091 cold=3.359
+round 5 1KB 100/s gateway n=1800 failed=0 late=0 p50=0.219 p99=0.457 max=19.797 cold=21.445
+round 5 1KB 500/s direct n=9000 failed=0 late=0 p50=0.023 p99=0.048 max=1.789 cold=3.289
+round 5 1KB 500/s gateway n=9000 failed=0 late=0 p50=0.166 p99=0.320 max=10.857 cold=21.672
+round 5 16KB 100/s direct n=1800 failed=0 late=0 p50=0.033 p99=0.068 max=0.280 cold=3.373
+round 5 16KB 100/s gateway n=1800 failed=0 late=0 p50=0.539 p99=0.879 max=10.073 cold=21.591
+round 5 16KB 500/s direct n=9000 failed=0 late=0 p50=0.029 p99=0.075 max=5.229 cold=3.541
+round 5 16KB 500/s gateway n=9000 failed=0 late=2 p50=0.510 p99=0.872 max=11.608 cold=10.568
+round 5 256KB 100/s direct n=1800 failed=0 late=0 p50=0.107 p99=0.188 max=6.974 cold=3.726
+round 5 256KB 100/s gateway n=1800 failed=0 late=0 p50=5.329 p99=6.236 max=15.228 cold=22.362
+round 5 256KB 500/s direct n=9000 failed=0 late=0 p50=0.082 p99=0.131 max=4.452 cold=3.415
+round 5 256KB 500/s gateway n=9000 failed=0 late=0 p50=5.733 p99=8.529 max=17.611 cold=11.238
+ms, lowest-highest of 5 rounds           n     failed  late  p50          p90          p99           p99.9          max           cold start
+1KB 100/s                       direct   1800  0       0     0.028-0.030  0.042-0.046  0.058-0.063   0.072-0.244    0.076-0.442   3.359-4.001
+1KB 100/s                       gateway  1800  0       0     0.201-0.219  0.244-0.256  0.378-0.523   9.232-10.691   9.485-19.797  10.853-21.877
+1KB 100/s                       added                        0.171-0.191  0.200-0.211  0.318-0.464   8.988-10.603   9.408-19.706
+1KB 500/s                       direct   9000  0       0     0.023-0.023  0.033-0.034  0.047-0.048   0.063-0.089    0.257-1.789    3.289-3.595
+1KB 500/s                       gateway  9000  0       1     0.166-0.176  0.204-0.215  0.290-0.330   8.909-9.127    10.717-10.857  10.832-22.666
+1KB 500/s                       added                        0.143-0.153  0.171-0.181  0.243-0.282   8.820-9.050    9.068-10.502
+16KB 100/s                      direct   1800  0       0     0.033-0.042  0.048-0.054  0.065-0.073   0.090-0.172    0.103-0.280    3.373-3.575
+16KB 100/s                      gateway  1800  0       0     0.528-0.543  0.593-0.607  0.868-0.916   9.770-10.923   10.073-11.201  21.435-21.591
+16KB 100/s                      added                        0.492-0.509  0.538-0.555  0.799-0.844   9.661-10.751   9.793-10.945
+16KB 500/s                      direct   9000  0       0     0.029-0.029  0.039-0.044  0.053-0.075   0.072-0.583    0.808-5.229    3.502-3.595
+16KB 500/s                      gateway  9000  0       2     0.474-0.510  0.520-0.587  0.810-0.882   9.567-10.231   10.962-11.608  10.568-22.724
+16KB 500/s                      added                        0.445-0.481  0.481-0.543  0.756-0.828   8.984-10.152   6.379-10.384
+256KB 100/s                     direct   1800  0       1     0.059-0.107  0.100-0.141  0.130-0.188   0.169-4.765    0.246-6.974    3.304-3.726
+256KB 100/s                     gateway  1800  0       0     5.325-5.355  5.660-5.698  6.236-6.865   15.167-15.837  15.228-16.095  21.340-22.386
+256KB 100/s                     added                        5.222-5.293  5.519-5.597  6.048-6.724   10.402-15.668  8.254-15.600
+256KB 500/s                     direct   9000  0       0     0.077-0.082  0.098-0.105  0.120-0.131   0.153-0.401    1.153-4.452    3.360-3.683
+256KB 500/s                     gateway  9000  0       1     5.624-5.733  6.131-6.344  7.638-10.092  15.749-22.854  16.803-29.474  11.238-21.855
+256KB 500/s                     added                        5.546-5.652  6.029-6.243  7.511-9.964   15.432-22.622  13.159-28.298
+knee 1KB direct: 64000/s (p99 at most 10ms, nothing failed, 3s probes)
+knee 1KB gateway: 15000/s (p99 at most 10ms, nothing failed, 3s probes)
+knee 16KB direct: 64000/s (p99 at most 10ms, nothing failed, 3s probes)
+knee 16KB gateway: 3750/s (p99 at most 10ms, nothing failed, 3s probes)
+knee 256KB direct: 20000/s (p99 at most 10ms, nothing failed, 3s probes)
+knee 256KB gateway: 531/s (p99 at most 10ms, nothing failed, 3s probes)

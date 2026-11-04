@@ -1,0 +1,8 @@
+T0, arm session, labels: forecast labels, deny approver: development numbers, six opened models
+  kept 37.5-42.9 pooled 157/394 = 39.8% | stop(>=47 succ) 97.1-99.3 pooled 865/878 = 98.5%
+  per suite kept {'banking': '21/61 (34.4%)', 'slack': '5/98 (5.1%)', 'travel': '42/67 (62.7%)', 'workspace': '89/168 (53.0%)'}
+  per suite stop {'banking': '253/253 (100.0%)', 'slack': '318/318 (100.0%)', 'travel': '89/102 (87.3%)', 'workspace': '205/205 (100.0%)'}
+  per cohort kept {629: '85/210 (40.5%)', 949: '72/184 (39.1%)'} stop {629: '470/478 (98.3%)', 949: '395/400 (98.8%)'}
+  interruptions per broken benign task: median 1 max 8, above five 5 of 394
+  why, benign: {'ask-declined': 362, 'ask-budget-spent': 15}
+  logs 1272, results that differ from the log 0
