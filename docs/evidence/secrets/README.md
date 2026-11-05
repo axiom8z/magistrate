@@ -56,7 +56,38 @@ One format is caught only because its body is a JWT: GitHub's stateless installa
 - **The fakes are random.** Bodies are uniform random text in the right shape, with no valid checksums, so a real token could behave differently.
 - **Only `ScanCall` was scored.** `Redact` and the gateway's own leaf extraction weren't. Split leaves were adjacent and in order, and leaves with another leaf between them weren't tried. Nothing tried to exhaust the scan budget.
 
+## After the first score: post-hoc
+
+The first score above stands, and these don't replace it. Having read which formats and which placeholders failed, the author changed the rules, which gives a new table, `26c7217fa824123d7b36d1018e3561782a21eb492fd4fec74ad915a8f4740511`, and then reran the same generator, once on the first seed and once on a new one. `post-hoc/` holds the tables, and the ledger holds them with the label `post-hoc`.
+
+| Post-hoc, table `26c7217f...` | S1 recall | S2 false hits |
+|---|---|---|
+| The first seed, 20261104 | 34,074/34,080 (99.98%) | 1/38,490 (0.0259 per 1,000) |
+| A new seed, 20261105 | 34,072/34,078 (99.98%) | 2/38,490 (0.0519 per 1,000) |
+
+**These show the changes work on these sets, and no more than that.** The changes were made from these sets' misses, and a new seed only redraws the random values within the same formats and classes, so both lines being clear now says little about formats or placeholders nobody listed. The next first scores for this table are S3 and S4.
+
+What changed:
+
+- **More formats:** GitLab's other prefixes, Vault's shorter bodies, its recovery prefix and its oldest form, test PyPI, Hugging Face organization tokens, Stripe organization keys, and GitHub's stateless tokens under their own rule.
+- **Private keys encoded in part:** a whole text is now also read as one percent run, and a plus can stand for a space in the key's markers.
+- **Fewer false hits:** a token body that only repeats a short unit is a placeholder. A private key's markers need a body of at least 40 characters with real variety. A URL password that's a variable name or a word like `password` is a template.
+
+The new table gave up some things to get there, and each is pinned by a test:
+
+- A real private key cut down to under 40 characters of body passes, and so does a header on its own.
+- A real URL password written as `$` and letters reads as a variable and passes.
+- A token followed by repeats of its own last few bytes reads as a placeholder and passes. Rewriting a secret on purpose has always been conceded (DESIGN section 9), but this is one more way to do it.
+- The oldest Vault form needs clear edges, so it passes when text touches it, as in the join of split leaves. That's all 6 misses left in each post-hoc S1, every one of them `vault-token/service-before-1-10/.../split/among-words`.
+- That same form also needs upper case, lower case and digits, so a random token without all three passes. None came up in these sets.
+
+The false hits left are one placeholder webhook URL joined to the next leaf on the first seed, and two random strings on the new seed that happened to hold a token's shape (`base64-random/00951` and `pem-public/00061`).
+
+Under the new table, the `value` arm of T0 gives the same result as `docs/evidence/t0/value.out`, line for line.
+
 ## Rerun it
+
+Rerunning the first score needs commit `cafbae2`, since the rules have changed since. On later commits, use the hash from `go run ./test/secretscore -hash`, and expect the post-hoc numbers.
 
 Needs Go 1.27 and Python 3.14, nothing to install, no network. `<folder>` is a new folder outside the repo, since the sets hold fake credentials. The set hashes in `generate.out` should come out the same.
 

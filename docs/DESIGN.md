@@ -36,7 +36,7 @@ Forecast (development numbers), printed beside each measured number:
 
 By log cohort: 629-log models 127/210 and 458/478; 949-log models 106/184 and 374/400.
 
-Measured so far through the real binary, on these same logs, so still development numbers: `value` kept 234/394 and interrupted 832/878, and 1,271 of the 1,272 logs agree with the forecast (`docs/evidence/t0/`). Added p99 at 1 KB and 500/s was 1.235-1.297 ms for an act and 0.243-0.282 ms for a read on one desktop (`docs/evidence/delay/`). The secret rules' first score crossed both failure lines: known-format recall 89.81% on S1, and 1.1691 false hits per 1,000 strings on S2 (`docs/evidence/secrets/`).
+Measured so far through the real binary, on these same logs, so still development numbers: `value` kept 234/394 and interrupted 832/878, and 1,271 of the 1,272 logs agree with the forecast (`docs/evidence/t0/`). Added p99 at 1 KB and 500/s was 1.235-1.297 ms for an act and 0.243-0.282 ms for a read on one desktop (`docs/evidence/delay/`). The secret rules' first score crossed both failure lines: known-format recall 89.81% on S1, and 1.1691 false hits per 1,000 strings on S2. After changing the rules because of those misses, the same generator gave 99.98% and 0.0259-0.0519, which is post-hoc (`docs/evidence/secrets/`).
 
 ## 2. Architecture and data flow
 
@@ -131,9 +131,9 @@ Ask sends [`elicitation/create`](https://modelcontextprotocol.io/specification/2
 
 ## 5. Secret scanning
 
-**Checked:** string leaves of every outgoing call and their join; every result, matches redacted, since a model can't re-encode what it never saw; audit records. **How:** 24 prefix-anchored rules from [gitleaks](https://github.com/gitleaks/gitleaks) (MIT); percent, base64 and hex decoding to depth 3.
+**Checked:** string leaves of every outgoing call and their join; every result, matches redacted, since a model can't re-encode what it never saw; audit records. **How:** 24 prefix-anchored rules from [gitleaks](https://github.com/gitleaks/gitleaks) (MIT), which a match must also pass a filter for placeholders; percent, base64 and hex decoding to depth 3.
 
-**Measured, rules frozen by hash, each set scored once:** S1, S2 self-written fakes and look-alikes; S3 arguments in the 22 `runs/` pipelines with no added defense, false hits per 1,000 calls; S4 [agent-egress-bench](https://github.com/luckyPipewrench/agent-egress-bench) ("not yet independent").
+**Measured, rules frozen by hash, each set scored once:** S1, S2 self-written fakes and look-alikes; S3 arguments in the 22 `runs/` pipelines with no added defense, false hits per 1,000 calls; S4 [agent-egress-bench](https://github.com/luckyPipewrench/agent-egress-bench) ("not yet independent"). S1 and S2 crossed their lines under the first table, and that table was then changed. Their first scores stand, anything measured on them since is post-hoc, and S3 and S4 are this table's first scores.
 
 ## 6. Audit log
 
@@ -201,7 +201,7 @@ Conceded families and the value-reuse set have no line; their rates print instea
 
 Attacker writes tool output and knows code, policy and thresholds. Trusted: user, operator, client, binary, OS, policy file, and upstream processes: each runs as the same user, so a hostile server can rewrite pins, latch and log. Pins catch updates, not hostility.
 
-**Stops, given correct labels and all tools routed through it:** unsourced control values, including rewritten ones; unsourced links the matcher recognises; known-format secrets; over-ceiling amounts; changed tools.
+**Stops, given correct labels and all tools routed through it:** unsourced control values, including rewritten ones; unsourced links the matcher recognises; secrets in the 24 rules' formats, whole; over-ceiling amounts; changed tools.
 
 **Cannot stop:**
 - Final text (travel 6) and content-only writes (travel 2): `D/v1/travel/injection_tasks.py:12-25,104-125`.
@@ -210,7 +210,7 @@ Attacker writes tool output and knows code, policy and thresholds. Trusted: user
 - Misuse of sourced values: a prompt-named recipient; a reversible act on a record a prompt word surfaces.
 - Delegated tasks (banking 12, workspace 13); anything a person approves.
 - Wrong labels, first-seen tool poison, behaviour changing under an unchanged definition.
-- Secrets reversed, translated, split across calls or formatless.
+- Secrets reversed, translated, split across calls, formatless, in a format no rule lists, or padded with repeats of their own tail. A private key with under 40 characters of body, and a URL password that reads as a variable name or a stock example word.
 - Built-in client tools; a compromised client or gateway.
 - Denial of service: any injection can burn the budget; restarts reset it. A model argument over the 1 MiB line cap leaves the client waiting for its own tool timeout, because the error can only carry a null id (real client still waiting at 40 s). A hung server delays the first tool list by the 20 s handshake timeout, and the other servers' tools then work.
 

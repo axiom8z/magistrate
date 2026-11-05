@@ -16,14 +16,16 @@ The design set lines this project could fail before anything was measured, and t
 
 | Failure line | Measured | Result |
 |---|---|---|
-| Known-format secret recall under 95% | 89.81% (30,608/34,080) | **Crossed** |
-| Over 1 false hit per 1,000 strings | 1.1691 (45/38,490) | **Crossed** |
+| Known-format secret recall under 95% | 89.81% (30,608/34,080) on the first score; 99.98% post-hoc | **Crossed on the first score** |
+| Over 1 false hit per 1,000 strings | 1.1691 (45/38,490) on the first score; 0.0259-0.0519 post-hoc | **Crossed on the first score** |
 | Added p99 above 5 ms at 1 KB and 500 requests a second | 1.297 ms at worst | Not crossed |
 | Binary and forecast over 5 points apart without a written cause | 1,271 of 1,272 logs agree | Not crossed |
 
 The rest of the lines need runs that haven't happened yet, including every line on attacks against new models.
 
-**The secret scanner failed its first score.** Its rules were frozen by hash, and a fresh session that never saw them wrote the test sets and scored them once. 18 of the 24 rules reached 100%. Most misses are token formats the rules don't cover, like GitLab's other prefixes and older Vault tokens, and most false hits come from placeholders that have a real token's shape. The sets are self-written and not independent, and the false-hit crossing rests on a few classes the writer chose to add. [Details and caveats](docs/evidence/secrets/README.md). First scores stay on record, and any later fix gets labelled post-hoc.
+**The secret scanner failed its first score.** Its rules were frozen by hash, and a fresh session that never saw them wrote the test sets and scored them once. 18 of the 24 rules reached 100%. Most misses are token formats the rules don't cover, like GitLab's other prefixes and older Vault tokens, and most false hits come from placeholders that have a real token's shape. The sets are self-written and not independent, and the false-hit crossing rests on a few classes the writer chose to add.
+
+The rules were then changed, and the same generator rerun: that's the post-hoc figure in the table. It shows the changes work on these sets. Since they were made from these sets' misses, it says little about formats nobody listed, and first scores on other data are still to come. [Details, caveats and what the changes gave up](docs/evidence/secrets/README.md).
 
 ### Agent attacks, on logs the rules were tuned on
 

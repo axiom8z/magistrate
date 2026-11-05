@@ -41,12 +41,23 @@ type encoding struct {
 	decode  func(string) string
 }
 
+// percentStops ends a percent run, so that a token encoded inside a sentence is redacted without the rest.
+const percentStops = " \t\r\n\"'`<>"
+
 // Line breaks count as part of a base64 or hex run because the usual tools wrap their output, and
 // with every offset tried, a line of other text before the wrapped lines does no harm.
 var encodings = []*encoding{
 	{chars: charSet("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/-_\r\n"), minLen: minRun, offsets: 4, decode: decodeBase64},
 	{chars: charSet("0123456789abcdefABCDEF\r\n"), minLen: minRun, offsets: 2, decode: decodeHex},
-	{chars: allBut(" \t\r\n\"'`<>"), minLen: 3, must: "%", offsets: 1, decode: decodePercent},
+	{chars: allBut(percentStops), minLen: 3, must: "%", offsets: 1, decode: decodePercent},
+}
+
+// wholePercent reads a whole text as one percent run. A secret encoded only in part can have its own
+// spaces and line breaks left as they are, as a private key does, and then each run holds only a piece.
+var wholePercent = &encoding{offsets: 1, decode: decodePercent}
+
+func encodedInPart(text string) bool {
+	return strings.Contains(text, "%") && strings.ContainsAny(text, percentStops)
 }
 
 var (
@@ -154,6 +165,9 @@ func (s *scan) check(text string, depth int) string {
 			return id
 		}
 	}
+	if encodedInPart(text) {
+		return s.checkRun(text, wholePercent, depth)
+	}
 	return ""
 }
 
@@ -216,7 +230,17 @@ func Redact(text string) (string, []string) {
 			spans = append(spans, span{r.start, r.end, id})
 		}
 	}
-	return replaceSpans(text, spans)
+	out, ids := replaceSpans(text, spans)
+	// What's left can still hide a secret encoded only in part. Nothing narrower than the whole text is
+	// known to hold it, so all of it goes.
+	if encodedInPart(out) {
+		if id := s.checkRun(out, wholePercent, 0); id != "" {
+			ids = append(ids, id)
+			slices.Sort(ids)
+			return "[REDACTED:" + id + "]", slices.Compact(ids)
+		}
+	}
+	return out, ids
 }
 
 func replaceSpans(text string, spans []span) (string, []string) {

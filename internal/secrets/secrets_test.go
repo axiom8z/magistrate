@@ -15,9 +15,6 @@ import (
 )
 
 const (
-	upper  = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	lower  = "abcdefghijklmnopqrstuvwxyz"
-	digits = "0123456789"
 	alnum  = upper + lower + digits
 	word   = alnum + "_"
 	hexLow = "0123456789abcdef"
@@ -65,12 +62,14 @@ var formats = []format{
 			}
 		}},
 	{"huggingface-token",
-		func(g *gen) string { return "hf" + "_" + g.chars(alnum, 34) },
+		func(g *gen) string { return []string{"hf", "api" + "_org"}[g.r.IntN(2)] + "_" + g.chars(alnum, 34) },
 		func(g *gen) map[string]string {
 			return map[string]string{
-				"too short":   "hf" + "_" + g.chars(alnum, 33),
-				"placeholder": "hf" + "_" + strings.Repeat("x", 34),
-				"snake case":  "hf" + "_hub_" + "download_" + "files_" + "from_" + "the_" + "cache_folder",
+				"too short":     "hf" + "_" + g.chars(alnum, 33),
+				"placeholder":   "hf" + "_" + strings.Repeat("x", 34),
+				"snake case":    "hf" + "_hub_" + "download_" + "files_" + "from_" + "the_" + "cache_folder",
+				"counting":      "hf" + "_" + strings.Repeat("1234567890", 4),
+				"org too short": "api" + "_org_" + g.chars(alnum, 33),
 			}
 		}},
 	{"perplexity-api-key",
@@ -120,20 +119,33 @@ var formats = []format{
 			}
 		}},
 	{"vault-token",
-		func(g *gen) string { return "hv" + "s." + g.chars(word+"-", 95) },
+		func(g *gen) string {
+			return "hv" + string("sbr"[g.r.IntN(3)]) + "." + g.chars(word+"-", 24+g.r.IntN(80))
+		},
 		func(g *gen) map[string]string {
 			return map[string]string{
-				"too short":   "hv" + "s." + g.chars(word, 89),
+				"too short":   "hv" + "s." + g.chars(word, 23),
 				"placeholder": "hv" + "s." + strings.Repeat("z", 95),
+				"counting":    "hv" + "s." + strings.Repeat("abc123", 8),
+				"old, a word": "s." + "getCustomerAccountBalance",
+				"old, joined": "o" + "s." + g.chars(lower, 8) + g.chars(upper, 8) + g.chars(digits, 8),
+				"old, long":   "s." + g.chars(lower, 10) + g.chars(upper, 10) + g.chars(digits, 10),
+				"old, short":  "s." + g.chars(lower, 8) + g.chars(upper, 8) + g.chars(digits, 7),
 			}
 		}},
 	{"github-token",
-		func(g *gen) string { return "gh" + string("pousr"[g.r.IntN(5)]) + "_" + g.chars(alnum, 36) },
+		func(g *gen) string {
+			if g.r.IntN(3) == 0 {
+				return "gh" + "s_" + g.chars(word+"-", 100) + "." + g.chars(word+"-", 100)
+			}
+			return "gh" + string("pousr"[g.r.IntN(5)]) + "_" + g.chars(alnum, 36)
+		},
 		func(g *gen) map[string]string {
 			return map[string]string{
 				"too short":   "gh" + "p_" + g.chars(alnum, 35),
 				"bad letter":  "gh" + "x_" + g.chars(alnum, 36),
 				"placeholder": "gh" + "p_" + strings.Repeat("x", 36),
+				"counting":    "gh" + "o_" + strings.Repeat("1234567890", 4),
 			}
 		}},
 	{"github-fine-grained-pat",
@@ -146,12 +158,18 @@ var formats = []format{
 		}},
 	{"gitlab-token",
 		func(g *gen) string {
-			return "gl" + []string{"pat", "dt", "rt"}[g.r.IntN(3)] + "-" + g.chars(word+"-", 20)
+			if g.r.IntN(14) == 0 {
+				return "GR" + "1348941" + g.chars(word+"-", 20)
+			}
+			kinds := []string{"pat", "oas", "dt", "rt", "rtr", "cbt", "ptt", "ft", "imt", "agent", "wt", "soat", "ffct"}
+			return "gl" + kinds[g.r.IntN(len(kinds))] + "-" + g.chars(word+"-", 20)
 		},
 		func(g *gen) map[string]string {
 			return map[string]string{
 				"too short":   "gl" + "pat-" + g.chars(alnum, 19),
 				"placeholder": "gl" + "pat-" + strings.Repeat("x", 20),
+				"counting":    "gl" + "ptt-" + strings.Repeat("abcdef", 5),
+				"other word":  "gl" + "obal-" + g.chars(alnum, 30),
 			}
 		}},
 	{"slack-token",
@@ -180,7 +198,7 @@ var formats = []format{
 		}},
 	{"stripe-key",
 		func(g *gen) string {
-			return []string{"sk", "rk"}[g.r.IntN(2)] + "_" + []string{"test", "live", "prod"}[g.r.IntN(3)] + "_" + g.chars(alnum, 24)
+			return []string{"sk", "rk"}[g.r.IntN(2)] + "_" + []string{"test", "live", "prod", "org"}[g.r.IntN(4)] + "_" + g.chars(alnum, 24)
 		},
 		func(g *gen) map[string]string {
 			return map[string]string{
@@ -188,6 +206,8 @@ var formats = []format{
 				"placeholder": "sk" + "_live_" + strings.Repeat("x", 24),
 				"public key":  "pk" + "_live_" + g.chars(alnum, 24),
 				"identifier":  "disk" + "_test_" + "connection",
+				"counting":    "sk" + "_live_" + strings.Repeat("1234567890", 3),
+				"pairs":       "rk" + "_live_" + strings.Repeat("abc123", 4),
 			}
 		}},
 	{"npm-token",
@@ -199,7 +219,12 @@ var formats = []format{
 			}
 		}},
 	{"pypi-token",
-		func(g *gen) string { return "py" + "pi-AgEI" + "cHlwaS5vcmc" + g.chars(word+"-", 60) },
+		func(g *gen) string {
+			if g.r.IntN(2) == 0 {
+				return "py" + "pi-AgEN" + "dGVzdC5weXBpLm9yZw" + g.chars(word+"-", 60)
+			}
+			return "py" + "pi-AgEI" + "cHlwaS5vcmc" + g.chars(word+"-", 60)
+		},
 		func(g *gen) map[string]string {
 			return map[string]string{
 				"too short":   "py" + "pi-AgEI" + "cHlwaS5vcmc" + g.chars(alnum, 49),
@@ -250,9 +275,15 @@ var formats = []format{
 		},
 		func(g *gen) map[string]string {
 			return map[string]string{
-				"public key": "-----BEGIN PUBLIC" + " KEY-----\n" + g.chars(alnum, 64),
-				"prose":      "never paste a private" + " key into a chat",
-				"no dashes":  "BEGIN RSA PRIVATE" + " KEY",
+				"public key":  "-----BEGIN PUBLIC" + " KEY-----\n" + g.chars(alnum, 64),
+				"prose":       "never paste a private" + " key into a chat",
+				"no dashes":   "BEGIN RSA PRIVATE" + " KEY",
+				"header only": "the file must start with -----BEGIN RSA PRIVATE" + " KEY-----",
+				"in code":     `strings.HasPrefix(s, "-----BEGIN OPENSSH PRIVATE` + ` KEY-----")`,
+				"dots":        "-----BEGIN PRIVATE" + " KEY-----\n...\n-----END PRIVATE" + " KEY-----",
+				"your key":    "-----BEGIN EC PRIVATE" + " KEY-----\n<your key here>\n-----END EC PRIVATE" + " KEY-----",
+				"empty":       "-----BEGIN ENCRYPTED PRIVATE" + " KEY-----\n-----END ENCRYPTED PRIVATE" + " KEY-----",
+				"a few words": "-----BEGIN PRIVATE" + " KEY-----\n" + strings.Repeat("abc ", 20),
 			}
 		}},
 	{"jwt",
@@ -278,8 +309,105 @@ var formats = []format{
 				"path email":  "https://example.com/users:list/someone@example.com",
 				"template":    "postgres://user:${" + "DB_PASSWORD}@db.example.com",
 				"short":       "https://user:ab" + "@example.com",
+				"variables":   "mysql://$DB_USER:$" + "DB_PASS@localhost:5432/channel",
+				"lower var":   "redis://user:$" + "password@localhost",
+				"windows var": "postgres://user:%" + "PG_PASS%@localhost",
+				"the word":    "postgres://user:" + "password@localhost/db",
+				"the word up": "postgres://admin:" + "PASSWORD@localhost/db",
+				"changeme":    "https://user:" + "changeme@example.com",
+				"one char":    "https://user:" + "xxxxxxxx@example.com",
 			}
 		}},
+}
+
+// The oldest Vault form, which has its own edges and so doesn't belong in formats, whose fakes get text
+// stuck to them.
+func TestOldVaultTokenIsCaughtBetweenEdges(t *testing.T) {
+	g := newGen(31)
+	for range 200 {
+		token := "s." + g.chars(lower, 8) + g.chars(upper, 8) + g.chars(digits, 8)
+		for _, wrap := range []string{"%s", "token=%s", `{"token":"%s"}`, "line one\n%s\nline three"} {
+			if id := ScanCall([]string{fmt.Sprintf(wrap, token)}); id != "vault-token" {
+				t.Fatalf("wrapped as %q got %q", wrap, id)
+			}
+		}
+	}
+}
+
+// A real password can start with a dollar and still be caught, if it isn't only a name.
+func TestURLPasswordThatLooksLikeAVariableButIsNot(t *testing.T) {
+	for _, password := range []string{"$ecret!23", "$a-b-c", "%41bc%", "%a", "pass" + "word1", "$", "%%"} {
+		text := "https://user:" + password + "@example.com"
+		if len(password) >= 3 && ScanCall([]string{text}) != "url-credentials" {
+			t.Errorf("%q was treated as a template", password)
+		}
+	}
+}
+
+// Secrets encoded in part, with some of their own spaces and line breaks left as they were.
+func TestPrivateKeyEncodedInPart(t *testing.T) {
+	g := newGen(32)
+	body := g.chars(alnum+"+/", 64) + "\n" + g.chars(alnum+"+/", 40)
+	key := "-----BEGIN RSA PRIVATE" + " KEY-----\n" + body + "\n-----END RSA PRIVATE" + " KEY-----"
+	cases := map[string]string{
+		"only the first byte": "%2D" + key[1:],
+		"some of the bytes":   strings.Replace(strings.Replace(key, "-", "%2D", 3), "B", "%42", 1),
+		"spaces as plus":      strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(key, " ", "+"), "\n", "%0A"), "/", "%2F"),
+		"plus, nothing else":  strings.ReplaceAll(key, " ", "+"),
+	}
+	for name, text := range cases {
+		if id := ScanCall([]string{text}); id != "private-key" {
+			t.Errorf("%s got %q", name, id)
+		}
+		out, ids := Redact(text)
+		if !slices.Contains(ids, "private-key") || strings.Contains(out, body[:30]) {
+			t.Errorf("%s: Redact gave IDs %v and kept the body", name, ids)
+		}
+	}
+}
+
+// A percent-encoded token inside a sentence is still redacted alone, so the whole-text read must not
+// widen what it replaces when a narrower run already holds the secret.
+func TestRedactionOfAnEncodedTokenKeepsTheSentence(t *testing.T) {
+	g := newGen(33)
+	token := "gh" + "p_" + g.chars(alnum, 36)
+	out, ids := Redact("before " + percentAll(token) + " after")
+	if out != "before [REDACTED:github-token] after" || !slices.Equal(ids, []string{"github-token"}) {
+		t.Errorf("got %q, IDs %v", out, ids)
+	}
+}
+
+// Placeholders that repeat a short unit pass, and a real token followed by the same thing doesn't.
+func TestRepeatsUnit(t *testing.T) {
+	g := newGen(34)
+	token := "gh" + "p_" + g.chars(alnum, 36)
+	for _, pad := range []string{"abcabc", "1234567890", "xy", "-"} {
+		if id := ScanCall([]string{token + strings.Repeat(pad, 500)}); id != "github-token" {
+			t.Errorf("a token padded with %q got %q", pad, id)
+		}
+	}
+	for _, text := range []string{strings.Repeat("abc123", 10), "prefix-" + strings.Repeat("abcdefghijkl", 3), strings.Repeat("a", 40)} {
+		if !repeatsUnit(text) {
+			t.Errorf("%q should count as a repeat", text)
+		}
+	}
+	for _, text := range []string{g.chars(alnum, 40), strings.Repeat("abcdefghijklm", 3), "short", strings.Repeat("ab", 5)} {
+		if repeatsUnit(text) {
+			t.Errorf("%q should not count as a repeat", text)
+		}
+	}
+}
+
+// This limit is conceded: a token followed by repeats of its own last bytes reads as a placeholder, when
+// what's left before the repeat is no longer than a prefix. Someone rewriting a secret on purpose has
+// easier ways too, which DESIGN section 9 concedes.
+func TestMissTokenPaddedWithItsOwnTail(t *testing.T) {
+	g := newGen(35)
+	key := "AK" + "IA" + g.chars(base32, 16)
+	tail := key[maxPrefix:]
+	if id := ScanCall([]string{key[:maxPrefix] + strings.Repeat(tail, 5)}); id != "" {
+		t.Errorf("this limit has changed, and the design should say so: got %q", id)
+	}
 }
 
 func TestEveryRuleHasATestAndThereAre24(t *testing.T) {
@@ -731,6 +859,7 @@ func TestHashCoversEveryFieldOfEveryRule(t *testing.T) {
 		"id":      func(r *rule) { r.id += "x" },
 		"keyword": func(r *rule) { r.keywords += ",x" },
 		"filter":  func(r *rule) { r.minSymbols++ },
+		"skip":    func(r *rule) { r.skip += "x" },
 		"pattern": func(r *rule) { r.pattern += "x" },
 	}
 	for i := range table {
@@ -751,7 +880,7 @@ func TestHashCoversEveryFieldOfEveryRule(t *testing.T) {
 
 // frozenHash is the rule table's hash. Editing a rule means editing this line as well, so the change is
 // visible in review and the numbers measured under the old table can't be mistaken for the new one's.
-const frozenHash = "2d687b53f1316ea3d84295868a8d7424169bd7eef077ee2d9d75cbd71a359004"
+const frozenHash = "26c7217fa824123d7b36d1018e3561782a21eb492fd4fec74ad915a8f4740511"
 
 // FuzzPlantedToken holds the scanner to its promise on text it has never seen: a token sitting among
 // anything at all fires, and redaction leaves no piece of it behind.
