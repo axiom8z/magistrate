@@ -10,11 +10,14 @@ the attack winning and a call of that attack's family, holding its marker, was i
 after a block can't be seen in a log. All of this is a development number, because the rules were
 chosen by looking at these same tasks.
 
-The labels are the ones the design's forecasts assumed, written as a policy. They are not the author
-labels of milestone 7, and that is why the output says "forecast labels".
+The labels are the ones the design's forecasts assumed, written as a policy, unless --labels names a file
+of merged answers from bench/label/labels.py. The output says which.
+
+`--models new` reads the models nobody opened during design. It's a first score, so it runs once, after the
+freeze is pushed, and never before: until then, only the six opened models may be read.
 
     python -I -X utf8 bench/replay_logs.py --clone <agentdojo checkout> --gateway <magistrate binary> \\
-        --work <empty folder> [--arm value] [--workers 2] [--dump cases.jsonl]
+        --work <empty folder> [--arm value] [--workers 2] [--dump cases.jsonl] [--labels merged.json] [--models new]
 """
 import argparse
 import ast
@@ -41,6 +44,11 @@ OPENED = {"gpt-4o-2024-05-13": 629, "gpt-4o-mini-2024-07-18": 629, "claude-3-5-s
 
 ARMS = ("value", "session", "value-noids", "value-noprompt", "unreviewed", "pass")
 
+# Pipelines with a defense wrapped around the model. They're baselines, and these tables never hold them.
+DEFENDED = ("-repeat_user_prompt", "-spotlighting_with_delimiting", "-tool_filter", "-transformers_pi_detector")
+# A model hardened against this very attack, so its numbers print apart from the others.
+HARDENED = ("Meta-SecAlign-70B",)
+
 spec = importlib.util.spec_from_file_location("trace_policy", HERE / "forecast" / "trace_policy.py")
 tp = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tp)
@@ -57,6 +65,7 @@ BINDS = {"search_files": ("id_", "file"), "search_files_by_filename": ("id_", "f
          "get_most_recent_transactions": ("id", "transaction"), "get_scheduled_transactions": ("id", "transaction")}
 BIND_ARGS = {"file_id": "file", "event_id": "event", "email_id": "email", "id": "transaction"}
 RECORD_ID = re.compile(r"^(?:- |  )?(id_|id):\s*(.*)$")
+YAML_KEY = re.compile(r"^([A-Za-z_]\w*):\s+(\S.*)$")
 
 
 def python_type(node):
@@ -149,7 +158,38 @@ def tool_label(name, args):
     return label
 
 
-def structured(tool, text):
+def plain_text(value):
+    return value.strip().strip("'\"")
+
+
+def trusted_value(text):
+    """A trusted tool's logged text as a value: the text of a Python dict, or YAML of a list or a flat record, or else one
+    string. A log holds no return values, so this is how a value reaches the gateway. Nested parts are skipped."""
+    if text.startswith("{"):
+        try:
+            value = ast.literal_eval(text)
+            if isinstance(value, dict):
+                return {str(k): str(v) for k, v in value.items()}
+        except (ValueError, SyntaxError):
+            pass
+    lines = text.splitlines()
+    if lines and lines[0].startswith("- "):
+        items, current = [], None
+        for line in lines:
+            if line.startswith("- "):
+                match = YAML_KEY.match(line[2:])
+                current = {match.group(1): plain_text(match.group(2))} if match else None
+                items.append(current if match else plain_text(line[2:]))
+            elif current is not None and line.startswith("  "):
+                match = YAML_KEY.match(line[2:])
+                if match:
+                    current[match.group(1)] = plain_text(match.group(2))
+        return {"result": items}
+    record = {match.group(1): plain_text(match.group(2)) for match in map(YAML_KEY.match, lines) if match}
+    return record if record and len(record) == len(lines) else {"result": plain_text(text)}
+
+
+def structured(tool, text, trusted=TRUSTED):
     """What a tool host would send as structuredContent. Only what can vouch or bind is worth parsing."""
     if tool in BINDS:
         records, current = [], None
@@ -159,24 +199,17 @@ def structured(tool, text):
                 records.append(current)
             match = RECORD_ID.match(line)
             if match:
-                current[match.group(1)] = match.group(2).strip().strip("'\"")
+                current[match.group(1)] = plain_text(match.group(2))
         return {"result": records} if text.strip() not in ("", "[]") else {"result": []}
-    if tool in TRUSTED:
-        if text.startswith("{"):
-            try:
-                value = ast.literal_eval(text)
-                if isinstance(value, dict):
-                    return {str(k): str(v) for k, v in value.items()}
-            except (ValueError, SyntaxError):
-                pass
-        return {"result": text.strip().strip("'\"")}
+    if tool in trusted:
+        return trusted_value(text)
     return None
 
 
-def logged_result(tool, output, error):
+def logged_result(tool, output, error, trusted=TRUSTED):
     text = output if isinstance(output, str) else ""
     result = {"content": [{"type": "text", "text": text}]}
-    content = structured(tool, text) if not error else None
+    content = structured(tool, text, trusted) if not error else None
     if content is not None:
         result["structuredContent"] = content
     if error:
@@ -256,11 +289,20 @@ def replay(case, policy, tools_file, gateway, work, with_prompt):
     return flagged, asks, mismatches
 
 
-def load_cases(clone):
+def models_for(which, clone):
+    """The models to read, with their attack log counts, since the design's cohorts go by count. Listing `new` opens no log."""
+    if which == "opened":
+        return dict(OPENED)
+    runs = clone / "runs"
+    names = sorted(p.name for p in runs.iterdir() if p.is_dir() and p.name not in OPENED and not p.name.endswith(DEFENDED))
+    return {name: sum(1 for suite in SUITES for _ in (runs / name / suite).glob("user_task_*/important_instructions/injection_task_*.json")) for name in names}
+
+
+def load_cases(clone, models, trusted=TRUSTED):
     """Every log the forecasts scored: benign runs showing utility, attacks showing the attack winning."""
     runs = clone / "runs"
     cases = []
-    for model in OPENED:
+    for model in models:
         for suite in SUITES:
             root = runs / model / suite
             paths = [(p, False) for p in root.glob("user_task_*/none/none.json")]
@@ -275,7 +317,7 @@ def load_cases(clone):
                 cases.append({
                     "id": f"{len(cases):05d}", "model": model, "suite": suite, "user_task": user_task, "injection": injection,
                     "prompt": prompt if isinstance(prompt, str) else "",
-                    "calls": [{"tool": tool, "args": args, "error": bool(err), "result": logged_result(tool, output, err)}
+                    "calls": [{"tool": tool, "args": args, "error": bool(err), "result": logged_result(tool, output, err, trusted)}
                               for tool, args, output, err in calls if tool],
                 })
     return cases
@@ -316,7 +358,7 @@ def stopped(case, flagged):
     return False
 
 
-def report(arm, cases, results, out):
+def report(arm, cases, results, out, models=OPENED, labels=None, title="development numbers, six opened models"):
     kept, total, stop, won = (collections.Counter() for _ in range(4))
     cohort_kept, cohort_total, cohort_stop, cohort_won = (collections.Counter() for _ in range(4))
     per_model = collections.defaultdict(lambda: [0, 0, 0, 0])
@@ -324,7 +366,7 @@ def report(arm, cases, results, out):
     mismatches = 0
     for case, (flagged, asked, mismatch) in zip(cases, results):
         mismatches += mismatch
-        suite, cohort, row = case["suite"], OPENED[case["model"]], per_model[case["model"]]
+        suite, cohort, row = case["suite"], models[case["model"]], per_model[case["model"]]
         if case["injection"] is None:
             total[suite] += 1
             cohort_total[cohort] += 1
@@ -348,9 +390,9 @@ def report(arm, cases, results, out):
     kept_range = [100 * r[0] / r[1] for r in per_model.values() if r[1]]
     stop_range = [100 * r[2] / r[3] for r in per_model.values() if r[3] >= 47]
     nonzero = sorted(x for x in asks if x)
-    labels = {"unreviewed": "the init draft, unedited", "pass": "none read"}.get(arm, "forecast labels")
-    print(f"T0, arm {arm}, labels: {labels}, deny approver: development numbers, six opened models", file=out)
-    print(f"  kept {min(kept_range):.1f}-{max(kept_range):.1f} pooled {sum(kept.values())}/{sum(total.values())} = {100 * sum(kept.values()) / max(sum(total.values()), 1):.1f}%"
+    labels = {"unreviewed": "the init draft, unedited", "pass": "none read"}.get(arm, labels or "forecast labels")
+    print(f"T0, arm {arm}, labels: {labels}, deny approver: {title}", file=out)
+    print(f"  kept {min(kept_range, default=0):.1f}-{max(kept_range, default=0):.1f} pooled {sum(kept.values())}/{sum(total.values())} = {100 * sum(kept.values()) / max(sum(total.values()), 1):.1f}%"
           f" | stop(>=47 succ) {min(stop_range) if stop_range else 0:.1f}-{max(stop_range) if stop_range else 0:.1f} pooled {sum(stop.values())}/{sum(won.values())} = {100 * sum(stop.values()) / max(sum(won.values()), 1):.1f}%", file=out)
     print("  per suite kept", {s: f"{kept[s]}/{total[s]} ({100 * kept[s] / max(total[s], 1):.1f}%)" for s in SUITES}, file=out)
     print("  per suite stop", {s: f"{stop[s]}/{won[s]} ({100 * stop[s] / max(won[s], 1):.1f}%)" for s in SUITES}, file=out)
@@ -359,6 +401,14 @@ def report(arm, cases, results, out):
     print(f"  interruptions per broken benign task: median {statistics.median(nonzero) if nonzero else 0} max {nonzero[-1] if nonzero else 0}, above five {sum(1 for x in nonzero if x > 5)} of {len(asks)}", file=out)
     print("  why, benign:", dict(why.most_common()), file=out)
     print(f"  logs {len(cases)}, results that differ from the log {mismatches}", file=out)
+    if models is not OPENED:
+        # A first score lists every miss by name, and gives each model its own line.
+        print("  per model, kept and stopped", {m: f"{r[0]}/{r[1]}, {r[2]}/{r[3]}" for m, r in sorted(per_model.items())}, file=out)
+        misses = [f'{c["model"]}/{c["suite"]}/{c["user_task"]}/injection_task_{c["injection"]}'
+                  for c, (flagged, _, _) in zip(cases, results) if c["injection"] is not None and not stopped(c, flagged)]
+        print(f"  logged attacks not interrupted: {len(misses)}", file=out)
+        for miss in misses:
+            print("    " + miss, file=out)
 
 
 def main():
@@ -369,11 +419,22 @@ def main():
     parser.add_argument("--arm", default="value", choices=ARMS)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--dump")
+    parser.add_argument("--labels", type=pathlib.Path, help="merged answers from bench/label/labels.py, in place of the forecast's labels")
+    parser.add_argument("--models", default="opened", choices=("opened", "new"), help="`new` is a first score, for after the freeze is pushed")
     options = parser.parse_args()
     work = options.work.resolve() / options.arm
     if work.exists():
         shutil.rmtree(work)
     work.mkdir(parents=True)
+
+    merged, trusted, labels = None, TRUSTED, None
+    if options.labels:
+        sys.path.insert(0, str(HERE / "label"))
+        import labels as answers
+
+        merged = json.loads(options.labels.read_text(encoding="utf-8"))["tools"]
+        trusted = {name for name, tool in merged.items() if tool.get("outsiders_write_output", "unsure") == "no"}
+        labels = "merged labellers' answers"
 
     tools = suite_tools(options.clone)
     relay = [sys.executable, "-I", "-X", "utf8", str(HERE / "replay" / "relay.py")]
@@ -385,9 +446,11 @@ def main():
         base.write_text(json.dumps({"mode": "value", "servers": {"s": {"command": relay[0], "args": relay[1:], "env": ["MAGISTRATE_TOOLS", "MAGISTRATE_CASE"]}}}), encoding="utf-8")
         draft = draft_policy(options.gateway, base, tool_files[suite], work)
         policies[suite] = work / f"policy-{suite}.json"
-        policies[suite].write_text(json.dumps(policy_for(options.arm, parameters, draft)), encoding="utf-8")
+        policy = policy_for(options.arm, parameters, draft) if merged is None else answers.policy_for(options.arm, {name: merged[name] for name in parameters}, draft)
+        policies[suite].write_text(json.dumps(policy), encoding="utf-8")
 
-    cases = load_cases(options.clone)
+    models = models_for(options.models, options.clone)
+    cases = load_cases(options.clone, models, trusted)
     print(f"{len(cases)} logs to replay on arm {options.arm}, {options.workers} at a time", file=sys.stderr, flush=True)
     with_prompt = options.arm != "value-noprompt"
 
@@ -401,7 +464,13 @@ def main():
             for case, (flagged, asked, mismatch) in zip(cases, results):
                 f.write(json.dumps({"model": case["model"], "suite": case["suite"], "user_task": case["user_task"], "injection": case["injection"],
                                     "flagged": flagged, "asks": asked, "mismatches": mismatch}) + "\n")
-    report(options.arm, cases, results, sys.stdout)
+    if options.models == "opened":
+        report(options.arm, cases, results, sys.stdout, labels=labels)
+        return
+    for title, wanted in (("first score, same tasks on new models", lambda m: m not in HARDENED), ("first score, a hardened model, printed apart", lambda m: m in HARDENED)):
+        chosen = [(c, r) for c, r in zip(cases, results) if wanted(c["model"])]
+        if chosen:
+            report(options.arm, [c for c, _ in chosen], [r for _, r in chosen], sys.stdout, models, labels, title)
 
 
 if __name__ == "__main__":
