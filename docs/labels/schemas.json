@@ -1,0 +1,959 @@
+{
+ "add_calendar_event_participants": {
+  "description": "Adds the given `participants` to the event with the given `event_id`. It will also email the new participants notifying them of the event.",
+  "args": {
+   "event_id": {
+    "type": "str",
+    "description": "The ID of the event to add participants to."
+   },
+   "participants": {
+    "type": "list[str]",
+    "description": "The list of participants' email addresses to add to the event."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "add_user_to_channel": {
+  "description": "Add a user to a given channel.",
+  "args": {
+   "user": {
+    "type": "str",
+    "description": "The user to add to the channel."
+   },
+   "channel": {
+    "type": "str",
+    "description": "The channel to add the user to."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "append_to_file": {
+  "description": "Append content to a file in the cloud drive.",
+  "args": {
+   "file_id": {
+    "type": "str",
+    "description": "The ID of the file to append content to."
+   },
+   "content": {
+    "type": "str",
+    "description": "The content to append to the file."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "cancel_calendar_event": {
+  "description": "Cancels the event with the given `event_id`. The event will be marked as canceled and no longer appear in the calendar. It will also send an email to the participants notifying them of the cancellation.",
+  "args": {
+   "event_id": {
+    "type": "str",
+    "description": "The ID of the event to cancel."
+   }
+  },
+  "suites": [
+   "travel",
+   "workspace"
+  ]
+ },
+ "check_restaurant_opening_hours": {
+  "description": "Get the openning hours of the given restaurants, check if the restaurant is open.",
+  "args": {
+   "restaurant_names": {
+    "type": "list[str]",
+    "description": "The name of the restaurant to get the operating hours for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "create_calendar_event": {
+  "description": "Creates a new calendar event with the given details and adds it to the calendar. It also sends an email to the participants with the event details.",
+  "args": {
+   "title": {
+    "type": "str",
+    "description": "The title of the event."
+   },
+   "start_time": {
+    "type": "str",
+    "description": "The start time of the event. Must be in format YYYY-MM-DD HH:MM."
+   },
+   "end_time": {
+    "type": "str",
+    "description": "The end time of the event. Must be in format YYYY-MM-DD HH:MM."
+   },
+   "description": {
+    "type": "str",
+    "description": "The description of the event."
+   },
+   "participants": {
+    "type": "list[str] | None",
+    "description": "The list of participants' email addresses. If `null`, no participants are set. The calendar owner's email address is always included.."
+   },
+   "location": {
+    "type": "str | None",
+    "description": "The location of the event. If `null`, no location is set."
+   }
+  },
+  "suites": [
+   "travel",
+   "workspace"
+  ]
+ },
+ "create_file": {
+  "description": "Create a new file in the cloud drive.",
+  "args": {
+   "filename": {
+    "type": "str",
+    "description": "The name of the file to create."
+   },
+   "content": {
+    "type": "str",
+    "description": "The content of the file to create."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "delete_email": {
+  "description": "Deletes the email with the given `email_id` from the inbox.",
+  "args": {
+   "email_id": {
+    "type": "str",
+    "description": "The id of the email to delete."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "delete_file": {
+  "description": "Delete a file from the cloud drive by its filename. It returns the file that was deleted.",
+  "args": {
+   "file_id": {
+    "type": "str",
+    "description": "The name of the file to delete."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "get_all_car_rental_companies_in_city": {
+  "description": "Get all car rental companies in the given city.",
+  "args": {
+   "city": {
+    "type": "str",
+    "description": "The city to get car rental companies from."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_all_hotels_in_city": {
+  "description": "Get all hotels in the given city.",
+  "args": {
+   "city": {
+    "type": "str",
+    "description": "The city to get hotels from."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_all_restaurants_in_city": {
+  "description": "Get all restaurants in the given city.",
+  "args": {
+   "city": {
+    "type": "str",
+    "description": "The city to get restaurants from."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_balance": {
+  "description": "Get the balance of the account.",
+  "args": {},
+  "suites": [
+   "banking"
+  ]
+ },
+ "get_car_fuel_options": {
+  "description": "Get the fuel options of the given car rental companies.",
+  "args": {
+   "company_name": {
+    "type": "list[str]",
+    "description": "The name of the car rental company to get the fuel options for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_car_price_per_day": {
+  "description": "Get the price per day of the given car rental companies.",
+  "args": {
+   "company_name": {
+    "type": "list[str]",
+    "description": "The name of the car rental company to get the price per day for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_car_rental_address": {
+  "description": "Get the address of the given car rental companies.",
+  "args": {
+   "company_name": {
+    "type": "list[str]",
+    "description": "The name of the car rental company to get the address for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_car_types_available": {
+  "description": "Get the car types available for the given car rental companies.",
+  "args": {
+   "company_name": {
+    "type": "list[str]",
+    "description": "The name of the car rental company to get the car types available for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_channels": {
+  "description": "Get the list of channels in the slack.",
+  "args": {},
+  "suites": [
+   "slack"
+  ]
+ },
+ "get_contact_information_for_restaurants": {
+  "description": "Get the contact information of the given restaurants.",
+  "args": {
+   "restaurant_names": {
+    "type": "list[str]",
+    "description": "The name of the restaurant to get the contact information for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_cuisine_type_for_restaurants": {
+  "description": "Get the cuisine type of the given restaurants, could be: Italian, Chinese, Indian, Japanese.",
+  "args": {
+   "restaurant_names": {
+    "type": "list[str]",
+    "description": "The name of restaurants to get the cuisine type for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_current_day": {
+  "description": "Returns the current day in ISO format, e.g. '2022-01-01'. It is useful to know what the current day, year, or month is, as the assistant should not assume what the current date is.",
+  "args": {},
+  "suites": [
+   "workspace"
+  ]
+ },
+ "get_day_calendar_events": {
+  "description": "Returns the appointments for the given `day`. Returns a list of dictionaries with informations about each meeting.",
+  "args": {
+   "day": {
+    "type": "str",
+    "description": "The day for which to return the appointments. Must be in format YYYY-MM-DD."
+   }
+  },
+  "suites": [
+   "travel",
+   "workspace"
+  ]
+ },
+ "get_dietary_restrictions_for_all_restaurants": {
+  "description": "Get the dietary restrictions of the given restaurants, could be: Vegetarian, Vegan, Gluten-free, Dairy-free.",
+  "args": {
+   "restaurant_names": {
+    "type": "list[str]",
+    "description": "The name of the restaurant to get the dietary restrictions for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_draft_emails": {
+  "description": "Returns all the draft emails in the inbox. Each email has a recipient, a subject, and a body.",
+  "args": {},
+  "suites": [
+   "workspace"
+  ]
+ },
+ "get_file_by_id": {
+  "description": "Get a file from a cloud drive by its ID.",
+  "args": {
+   "file_id": {
+    "type": "str",
+    "description": "The ID of the file to retrieve."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "get_flight_information": {
+  "description": "Get the flight information from the departure city to the arrival city.",
+  "args": {
+   "departure_city": {
+    "type": "str",
+    "description": "The city to depart from."
+   },
+   "arrival_city": {
+    "type": "str",
+    "description": "The city to arrive at."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_hotels_address": {
+  "description": "Get the address of the given hotel.",
+  "args": {
+   "hotel_name": {
+    "type": "str",
+    "description": "The name of the hotel to get the address for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_hotels_prices": {
+  "description": "Get all hotels within the given budget, should be within the price range.",
+  "args": {
+   "hotel_names": {
+    "type": "list[str]",
+    "description": "The name of the hotel to get the price range for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_iban": {
+  "description": "Get the IBAN of the current bank account.",
+  "args": {},
+  "suites": [
+   "banking"
+  ]
+ },
+ "get_most_recent_transactions": {
+  "description": "Get the list of the most recent transactions, e.g. to summarize the last n transactions.",
+  "args": {
+   "n": {
+    "type": "int",
+    "description": "Number of transactions to return"
+   }
+  },
+  "suites": [
+   "banking"
+  ]
+ },
+ "get_price_for_restaurants": {
+  "description": "Get the price per person of the given restaurants.",
+  "args": {
+   "restaurant_names": {
+    "type": "list[str]",
+    "description": "The name of the restaurant to get the price per person for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_rating_reviews_for_car_rental": {
+  "description": "Get the rating and reviews for the given car rental companies.",
+  "args": {
+   "company_name": {
+    "type": "list[str]",
+    "description": "The name of the car rental company to get reviews for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_rating_reviews_for_hotels": {
+  "description": "Get the rating and reviews for the given hotels.",
+  "args": {
+   "hotel_names": {
+    "type": "list[str]",
+    "description": "The names of the hotels to get reviews for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_rating_reviews_for_restaurants": {
+  "description": "Get the rating and reviews for the given restaurants.",
+  "args": {
+   "restaurant_names": {
+    "type": "list[str]",
+    "description": "The names of the restaurants to get reviews for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_received_emails": {
+  "description": "Returns all the received emails in the inbox. Each email has a sender, a subject, and a body.",
+  "args": {},
+  "suites": [
+   "workspace"
+  ]
+ },
+ "get_restaurants_address": {
+  "description": "Get the address of the given restaurants.",
+  "args": {
+   "restaurant_names": {
+    "type": "list[str]",
+    "description": "The name of the restaurant to get the address for."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_scheduled_transactions": {
+  "description": "Get the list of scheduled transactions.",
+  "args": {},
+  "suites": [
+   "banking"
+  ]
+ },
+ "get_sent_emails": {
+  "description": "Returns all the sent emails in the inbox. Each email has a recipient, a subject, and a body.",
+  "args": {},
+  "suites": [
+   "workspace"
+  ]
+ },
+ "get_unread_emails": {
+  "description": "Returns all the unread emails in the inbox. Each email has a sender, a subject, and a body. The emails are marked as read after this function is called.",
+  "args": {},
+  "suites": [
+   "workspace"
+  ]
+ },
+ "get_user_info": {
+  "description": "Get the user information.",
+  "args": {},
+  "suites": [
+   "banking"
+  ]
+ },
+ "get_user_information": {
+  "description": "Get the user information, could be: first name, last name, ID number, email, phone number, address, passport number, bank account number, credit card number. These information are used for booking hotels, restaurants, car rentals, and flights.",
+  "args": {},
+  "suites": [
+   "travel"
+  ]
+ },
+ "get_users_in_channel": {
+  "description": "Get the list of users in the given channel.",
+  "args": {
+   "channel": {
+    "type": "str",
+    "description": "The channel to get the users from."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "get_webpage": {
+  "description": "Returns the content of the webpage at a given URL.",
+  "args": {
+   "url": {
+    "type": "str",
+    "description": "The URL of the webpage."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "invite_user_to_slack": {
+  "description": "Invites a user to the Slack workspace.",
+  "args": {
+   "user": {
+    "type": "str",
+    "description": "The user to invite."
+   },
+   "user_email": {
+    "type": "str",
+    "description": "The user email where invite should be sent."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "list_files": {
+  "description": "Retrieve all files in the cloud drive.",
+  "args": {},
+  "suites": [
+   "workspace"
+  ]
+ },
+ "post_webpage": {
+  "description": "Posts a webpage at a given URL with the given content.",
+  "args": {
+   "url": {
+    "type": "str",
+    "description": "The URL of the webpage."
+   },
+   "content": {
+    "type": "str",
+    "description": "The content of the webpage."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "read_channel_messages": {
+  "description": "Read the messages from the given channel.",
+  "args": {
+   "channel": {
+    "type": "str",
+    "description": "The channel to read the messages from."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "read_file": {
+  "description": "Reads the contents of the file at the given path.",
+  "args": {
+   "file_path": {
+    "type": "str",
+    "description": "The path to the file to read."
+   }
+  },
+  "suites": [
+   "banking"
+  ]
+ },
+ "read_inbox": {
+  "description": "Read the messages from the given user inbox.",
+  "args": {
+   "user": {
+    "type": "str",
+    "description": "The user whose inbox to read."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "remove_user_from_slack": {
+  "description": "Remove a user from the Slack workspace.",
+  "args": {
+   "user": {
+    "type": "str",
+    "description": "The user to remove."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "reschedule_calendar_event": {
+  "description": "Reschedules the event with the given `event_id` to the new start and end times. It will also send an email to the participants notifying them of the rescheduling.",
+  "args": {
+   "event_id": {
+    "type": "str",
+    "description": "The ID of the event to reschedule."
+   },
+   "new_start_time": {
+    "type": "str",
+    "description": "The new start time of the event. Must be in format YYYY-MM-DD HH:MM."
+   },
+   "new_end_time": {
+    "type": "str | None",
+    "description": "The new end time of the event. Must be in format YYYY-MM-DD HH:MM. If `null`, the end time will be computed based on the new start time to keep the event duration the same."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "reserve_car_rental": {
+  "description": "Makes a reservation for a car rental with the provided details.",
+  "args": {
+   "company": {
+    "type": "str",
+    "description": "Where the reservation is made. It must only be the name of the car rental company."
+   },
+   "start_time": {
+    "type": "str",
+    "description": "The reservation starting time. Should be in ISO format 'YYYY-MM-DD HH:MM'."
+   },
+   "end_time": {
+    "type": "str | None",
+    "description": "The reservation end time. Should be in ISO format 'YYYY-MM-DD HH:MM'."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "reserve_hotel": {
+  "description": "Makes a reservation for a hotel with the provided details..",
+  "args": {
+   "hotel": {
+    "type": "str",
+    "description": "Where the reservation is made. It must only be the name of the hotel."
+   },
+   "start_day": {
+    "type": "str",
+    "description": "The check-in day for the hotel. Should be in ISO format 'YYYY-MM-DD'."
+   },
+   "end_day": {
+    "type": "str",
+    "description": "The check-out day for the hotel. Should be in ISO format 'YYYY-MM-DD'."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "reserve_restaurant": {
+  "description": "Makes a reservation for a restaurant with the provided details.",
+  "args": {
+   "restaurant": {
+    "type": "str",
+    "description": "Where the reservation is made. It must only be the name of the restaurant."
+   },
+   "start_time": {
+    "type": "str",
+    "description": "The reservation time. Should be in ISO format 'YYYY-MM-DD HH:MM'. The end time is automatically set to be two hours after the start of the reservation."
+   }
+  },
+  "suites": [
+   "travel"
+  ]
+ },
+ "schedule_transaction": {
+  "description": "Schedule a transaction.",
+  "args": {
+   "recipient": {
+    "type": "str",
+    "description": "IBAN of the recipient"
+   },
+   "amount": {
+    "type": "float",
+    "description": "Amount of the transaction"
+   },
+   "subject": {
+    "type": "str",
+    "description": "Subject of the transaction"
+   },
+   "date": {
+    "type": "str",
+    "description": "Next date of the transaction"
+   },
+   "recurring": {
+    "type": "bool",
+    "description": "Is the transaction recurring"
+   }
+  },
+  "suites": [
+   "banking"
+  ]
+ },
+ "search_calendar_events": {
+  "description": "Searches calendar events that match the given query in the tile or the description. If provided, filters events by date.",
+  "args": {
+   "query": {
+    "type": "str",
+    "description": "The query string to search for in event titles and descriptions."
+   },
+   "date": {
+    "type": "str | None",
+    "description": "The date for which to search events. Must be in format YYYY-MM-DD. If `null`, searches all events."
+   }
+  },
+  "suites": [
+   "travel",
+   "workspace"
+  ]
+ },
+ "search_contacts_by_email": {
+  "description": "Finds contacts in the inbox's contact list by email. It returns a list of contacts that match the given email.",
+  "args": {
+   "query": {
+    "type": "str",
+    "description": "The email of the contacts to search for."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "search_contacts_by_name": {
+  "description": "Finds contacts in the inbox's contact list by name. It returns a list of contacts that match the given name.",
+  "args": {
+   "query": {
+    "type": "str",
+    "description": "The name of the contacts to search for."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "search_emails": {
+  "description": "Searches for emails in the inbox that contain the given query in the subject or body. If `address` is provided, only emails from that address are searched.",
+  "args": {
+   "query": {
+    "type": "str",
+    "description": "The query to search for in the email subject or body. If empty, all emails are returned."
+   },
+   "sender": {
+    "type": "str | None",
+    "description": "The email address of the sender. If `null`, all emails are searched. Use `search_contacts_by_name` if the email address is unknown."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "search_files": {
+  "description": "Search for files in the cloud drive by content.",
+  "args": {
+   "query": {
+    "type": "str",
+    "description": "The string to search for in the files."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "search_files_by_filename": {
+  "description": "Get a file from a cloud drive by its filename. It returns a list of files. Each file contains the file id, the content, the file type, and the filename.",
+  "args": {
+   "filename": {
+    "type": "str",
+    "description": "The name of the file to retrieve."
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "send_channel_message": {
+  "description": "Send a channel message from `author` to `channel` with the given `content`.",
+  "args": {
+   "channel": {
+    "type": "str",
+    "description": "The channel to send the message to."
+   },
+   "body": {
+    "type": "str",
+    "description": "The body of the message."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "send_direct_message": {
+  "description": "Send a direct message from `author` to `recipient` with the given `content`.",
+  "args": {
+   "recipient": {
+    "type": "str",
+    "description": "The recipient of the message."
+   },
+   "body": {
+    "type": "str",
+    "description": "The body of the message."
+   }
+  },
+  "suites": [
+   "slack"
+  ]
+ },
+ "send_email": {
+  "description": "Sends an email with the given `body` to the given `address`. Returns a dictionary with the email details.",
+  "args": {
+   "recipients": {
+    "type": "list[str]",
+    "description": "The list with the email addresses of the recipients."
+   },
+   "subject": {
+    "type": "str",
+    "description": "The subject of the email."
+   },
+   "body": {
+    "type": "str",
+    "description": "The body of the email."
+   },
+   "attachments": {
+    "type": "list[dict] | None",
+    "description": "The list of attachments to include in the email. If `null`, no attachments are included. If the attachment has as \"type\" \"file\", then it is expected to have a field \"file_id\", with the ID of the file in the cloud drive. If the attachment has as \"type\" \"event\", then it is expected to be a calendar event in the field \"event_details\". A calendar event has the following fields: `title`, `description`, `start_time` (in ISO format), `end_time` (in ISO format), `location`, and participants (a list of emails)."
+   },
+   "cc": {
+    "type": "list[str] | None",
+    "description": "The list of email addresses to include in the CC field. If `null`, no email addresses are included."
+   },
+   "bcc": {
+    "type": "list[str] | None",
+    "description": "The list of email addresses to include in the BCC field. If `null`, no email addresses are included."
+   }
+  },
+  "suites": [
+   "travel",
+   "workspace"
+  ]
+ },
+ "send_money": {
+  "description": "Sends a transaction to the recipient.",
+  "args": {
+   "recipient": {
+    "type": "str",
+    "description": "IBAN of the recipient"
+   },
+   "amount": {
+    "type": "float",
+    "description": "Amount of the transaction"
+   },
+   "subject": {
+    "type": "str",
+    "description": "Subject of the transaction"
+   },
+   "date": {
+    "type": "str",
+    "description": "Date of the transaction"
+   }
+  },
+  "suites": [
+   "banking"
+  ]
+ },
+ "share_file": {
+  "description": "Share a file with a user.",
+  "args": {
+   "file_id": {
+    "type": "str",
+    "description": "The ID of the file to share."
+   },
+   "email": {
+    "type": "str",
+    "description": "The email of the user to share the file with."
+   },
+   "permission": {
+    "type": "SharingPermission",
+    "description": "The permission level to grant the user.",
+    "one_of": [
+     "r",
+     "rw"
+    ]
+   }
+  },
+  "suites": [
+   "workspace"
+  ]
+ },
+ "update_password": {
+  "description": "Update the user password.",
+  "args": {
+   "password": {
+    "type": "str",
+    "description": "New password for the user"
+   }
+  },
+  "suites": [
+   "banking"
+  ]
+ },
+ "update_scheduled_transaction": {
+  "description": "Update a scheduled transaction.",
+  "args": {
+   "id": {
+    "type": "int",
+    "description": "ID of the transaction (mandatory)"
+   },
+   "recipient": {
+    "type": "str | None",
+    "description": "IBAN of the recipient (optional)"
+   },
+   "amount": {
+    "type": "float | None",
+    "description": "Amount of the transaction (optional)"
+   },
+   "subject": {
+    "type": "str | None",
+    "description": "Subject of the transaction (optional)"
+   },
+   "date": {
+    "type": "str | None",
+    "description": "Next date of the transaction (optional)"
+   },
+   "recurring": {
+    "type": "bool | None",
+    "description": "Is the transaction recurring (optional)"
+   }
+  },
+  "suites": [
+   "banking"
+  ]
+ },
+ "update_user_info": {
+  "description": "Update the user information.",
+  "args": {
+   "first_name": {
+    "type": "str | None",
+    "description": "First name of the user (optional)"
+   },
+   "last_name": {
+    "type": "str | None",
+    "description": "Last name of the user (optional)"
+   },
+   "street": {
+    "type": "str | None",
+    "description": "Street of the user (optional)"
+   },
+   "city": {
+    "type": "str | None",
+    "description": "City of the user (optional)"
+   }
+  },
+  "suites": [
+   "banking"
+  ]
+ }
+}

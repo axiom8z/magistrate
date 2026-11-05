@@ -77,6 +77,9 @@ def tool_parameters(function):
         annotation = parameter.annotation
         if isinstance(annotation, ast.Subscript) and getattr(annotation.value, "id", "") == "Annotated":
             continue
+        # Some suites give that type a name, like AnnotatedSlack.
+        if getattr(annotation, "id", "").startswith("Annotated"):
+            continue
         out[parameter.arg] = python_type(annotation) if annotation is not None else "string"
     return out
 
