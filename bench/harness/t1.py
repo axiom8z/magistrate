@@ -20,9 +20,11 @@ import concurrent.futures
 import hashlib
 import importlib.util
 import json
+import os
 import pathlib
 import re
 import shutil
+import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -313,6 +315,12 @@ def main():
     options = parser.parse_args()
     if options.compare:
         return compare(*options.compare)
+    if sys.flags.hash_randomization:
+        # AgentDojo's calendar tool builds its participant list from a set, so the order follows Python's per-process
+        # string hash. Two runs can only be compared with that pinned, and pinning it takes a new process.
+        if os.environ.get("PYTHONHASHSEED") == "0":
+            sys.exit("t1.py: the hash seed comes from the environment, so don't run this with -I or -E")
+        return subprocess.run([sys.executable, *sys.orig_argv[1:]], env=dict(os.environ, PYTHONHASHSEED="0")).returncode
 
     harness = Harness(options)
     cases = harness.cases()
