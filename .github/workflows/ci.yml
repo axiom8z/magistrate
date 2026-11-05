@@ -42,6 +42,27 @@ jobs:
           cache: false
       - run: go test -race -count=1 ./...
 
+  harness:
+    name: benchmark wiring (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: go build -o bin/ ./cmd/sayswho
+      - run: python -I -X utf8 bench/harness/test_t1_report.py
+      - run: python -I -X utf8 bench/harness/test_wire.py bin/sayswho wire-work
+      - run: python -I -X utf8 bench/label/test_labels.py bin/sayswho label-work
+
   no-dependencies:
     name: standard library only
     runs-on: ubuntu-latest
