@@ -8,7 +8,7 @@ This is value matching, which is a heuristic and not a guarantee. [The design](d
 
 ## Status
 
-**Under construction: milestones 1 to 5 of 12.** The gateway is built and tested. The evaluation is not finished, and every number below is a development number.
+**Under construction: milestones 1 to 6 of 12.** The gateway is built and tested. The evaluation is not finished, and every number below is a development number.
 
 The project was called SaysWho until 2026-11-04. Older commits and some raw outputs still use that name.
 
@@ -48,9 +48,13 @@ These replay AgentDojo's published logs through the real binary, with every ques
 
 So the cost is real: with nobody to approve anything, about 40% of normal tasks hit a refusal, and most of slack's do.
 
+### Every attack pair, with no rules on
+
+This replays the benchmark's own correct calls for all 97 tasks and 949 attack pairs, with a perfectly obedient agent and no model. Going through the real binary in `pass` mode gave the same result as going around it, on all 1,046 cases. With no defence, the attack wins 596 of the 609 pairs that can be scored so far. That's the floor the rules get measured against, and they haven't been measured against it yet. [Details and caveats](docs/evidence/t1/README.md).
+
 **Delay:** the gateway added 1.235-1.297 ms at p99 for an action and 0.243-0.282 ms for a read, at 1 KB and 500 requests a second, on one desktop. [Details](docs/evidence/delay/README.md).
 
-**Not measured yet:** ground-truth replay of every attack pair, the models not yet opened, a live model, a blind benchmark, attacks written after the rules were frozen, and a person answering the approval dialog in the real client. [The plan](docs/DESIGN.md#8-evaluation-plan) says what each one will be held to, including the lines it could fail.
+**Not measured yet:** the same replay with the rules on, the models not yet opened, a live model, a blind benchmark, attacks written after the rules were frozen, and a person answering the approval dialog in the real client. [The plan](docs/DESIGN.md#8-evaluation-plan) says what each one will be held to, including the lines it could fail.
 
 ## Try it
 
