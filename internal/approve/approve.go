@@ -16,8 +16,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/axiom8z/sayswho/internal/prov"
-	"github.com/axiom8z/sayswho/internal/rpc"
+	"github.com/axiom8z/magistrate/internal/prov"
+	"github.com/axiom8z/magistrate/internal/rpc"
 )
 
 // Timeout is how long a question stays open. It is not a measured value: long enough to come back to
@@ -109,7 +109,7 @@ func shown(value string) string {
 // session mode there are no findings: the call is held because of when it came, not what it holds.
 func Prompt(tool string, findings []prov.Finding, args map[string]jsontext.Value) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "SaysWho: %s wants to run.", Clean(tool))
+	fmt.Fprintf(&b, "Magistrate: %s wants to run.", Clean(tool))
 	if len(findings) == 0 {
 		b.WriteString(" Untrusted tool output has been read in this session, so any action needs your approval.")
 	}

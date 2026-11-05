@@ -6,12 +6,12 @@
 *.exe
 *.test
 /dist/
-/sayswho
-/swbench
+/magistrate
+/magbench
 
 # Run state: latch files, audit logs and keys must never be committed
 /state/
-*.sayswho-state/
+*.magistrate-state/
 
 # Python
 __pycache__/

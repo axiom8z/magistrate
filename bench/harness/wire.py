@@ -12,7 +12,7 @@ import threading
 
 HERE = pathlib.Path(__file__).resolve().parent
 PROTOCOL = "2025-11-25"
-BLOCK = re.compile(r"^Blocked by SaysWho, rule ([^:]+):")
+BLOCK = re.compile(r"^Blocked by Magistrate, rule ([^:]+):")
 # A wedged run must not hang the whole benchmark. The harness counts it as invalid.
 CASE_TIMEOUT = 120
 
@@ -32,7 +32,7 @@ def always_accept(_params):
 
 def server_entry():
     """How the policy starts the relay. -I keeps the relay's folder off the import path."""
-    return {"command": sys.executable, "args": ["-I", "-X", "utf8", str(HERE / "host_relay.py")], "env": ["SAYSWHO_TOOLS", "SAYSWHO_HOST_PORT"]}
+    return {"command": sys.executable, "args": ["-I", "-X", "utf8", str(HERE / "host_relay.py")], "env": ["MAGISTRATE_TOOLS", "MAGISTRATE_HOST_PORT"]}
 
 
 def text_result(text, structured=None, is_error=False):
@@ -94,7 +94,7 @@ class GatewaySession:
         command = [str(binary), "serve", "--policy", str(policy), "--state", str(state)]
         if prompt_file:
             command += ["--prompt-file", str(prompt_file)]
-        env = dict(os.environ, SAYSWHO_TOOLS=str(tools_file), SAYSWHO_HOST_PORT=str(host_port))
+        env = dict(os.environ, MAGISTRATE_TOOLS=str(tools_file), MAGISTRATE_HOST_PORT=str(host_port))
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
         self.timer = threading.Timer(CASE_TIMEOUT, self.process.kill)
         self.timer.start()
@@ -146,9 +146,9 @@ def write_tools(path, listing):
 
 
 def draft_policy(binary, base_file, tools_file):
-    """`sayswho init` against the relay, which is also where the tool pins come from."""
-    env = dict(os.environ, SAYSWHO_TOOLS=str(tools_file))
-    env.pop("SAYSWHO_HOST_PORT", None)
+    """`magistrate init` against the relay, which is also where the tool pins come from."""
+    env = dict(os.environ, MAGISTRATE_TOOLS=str(tools_file))
+    env.pop("MAGISTRATE_HOST_PORT", None)
     done = subprocess.run([str(binary), "init", "--policy", str(base_file)], capture_output=True, env=env, timeout=120)
     if done.returncode != 0:
         raise RuntimeError("init failed: " + done.stderr.decode(errors="replace"))

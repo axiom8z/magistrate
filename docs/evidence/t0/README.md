@@ -1,6 +1,6 @@
 # T0: published logs through the real gateway
 
-`bench/replay_logs.py` sends the calls in AgentDojo's published logs through the real `sayswho` binary, one fresh process and state directory per log, and answers every question with a decline. `bench/replay/relay.py` plays the server and returns what the log says each call returned.
+`bench/replay_logs.py` sends the calls in AgentDojo's published logs through the real `magistrate` binary, one fresh process and state directory per log, and answers every question with a decline. `bench/replay/relay.py` plays the server and returns what the log says each call returned.
 
 These are **development numbers, benchmark-informed**. The rules were chosen by looking at these same tasks, and the six models here are the ones opened during design, so they show the binary does what the design said it would, and not how it does on anything new. A log also can't show what an agent would have done after a block. Kept counts any interruption as a break. The labels are the ones the forecasts assumed, in policy form. They are not the author labels of milestone 7.
 
@@ -39,8 +39,8 @@ The forecast and the binary differ in smaller ways that moved no count here. The
 Needs Python 3.14 and a checkout of AgentDojo at `089ed468`. Nothing to install, no model and no network.
 
 ```console
-go build -o sayswho ./cmd/sayswho
-python -I -X utf8 bench/replay_logs.py --clone <checkout> --gateway ./sayswho --work <empty folder> --arm value --dump value.jsonl
+go build -o magistrate ./cmd/magistrate
+python -I -X utf8 bench/replay_logs.py --clone <checkout> --gateway ./magistrate --work <empty folder> --arm value --dump value.jsonl
 python -I -X utf8 bench/compare_forecast.py <checkout> value.jsonl
 ```
 

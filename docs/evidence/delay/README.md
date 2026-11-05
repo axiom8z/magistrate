@@ -1,6 +1,6 @@
 # Delay the gateway adds
 
-`cmd/swbench` measures an instant stub server directly and through the full gateway in `value` mode, with the secret scanner on, a prompt file and a pinned policy. The load is open loop: request i is due at t0 + i/rate whatever became of earlier ones, and latency runs from the due time, so a stall is charged to every request it held up. Each cell ran five interleaved rounds of 20 seconds, and the first tenth of each round is dropped as warm-up. Ranges are lowest to highest across rounds.
+`cmd/magbench` measures an instant stub server directly and through the full gateway in `value` mode, with the secret scanner on, a prompt file and a pinned policy. The load is open loop: request i is due at t0 + i/rate whatever became of earlier ones, and latency runs from the due time, so a stall is charged to every request it held up. Each cell ran five interleaved rounds of 20 seconds, and the first tenth of each round is dropped as warm-up. Ranges are lowest to highest across rounds.
 
 `act.txt` labels the tool an act, the slow path, because the decision is fsynced before the call is forwarded. `read.txt` labels it a read, which pays for no fsync and is what most calls in a session are.
 
@@ -37,9 +37,9 @@ Nothing failed in any round. A handful of sends ran over a millisecond late: 2 a
 ## Rerun it
 
 ```console
-go build -o sayswho ./cmd/sayswho
-go build -o swbench ./cmd/swbench
-swbench run -- sayswho serve --policy <policy> --state {state} --prompt-file <prompt>
+go build -o magistrate ./cmd/magistrate
+go build -o magbench ./cmd/magbench
+magbench run -- magistrate serve --policy <policy> --state {state} --prompt-file <prompt>
 ```
 
-The policy starts `swbench stub` as its one server, and `sayswho init` drafts it, with the payload tool as an act. `{state}` becomes a new empty folder for each start. A full run takes about 25 minutes.
+The policy starts `magbench stub` as its one server, and `magistrate init` drafts it, with the payload tool as an act. `{state}` becomes a new empty folder for each start. A full run takes about 25 minutes.

@@ -1,10 +1,10 @@
 """The MCP server behind the gateway during a benchmark run. It lists a suite's tools, and passes each call over a
 loopback socket to the tool host in the harness, which runs the real tool against the task's environment.
 
-    harness (client) -> sayswho -> this file -> socket -> harness (tool host) -> run_function(env, ...)
+    harness (client) -> magistrate -> this file -> socket -> harness (tool host) -> run_function(env, ...)
 
-It reads two environment variables, which the policy lets through: SAYSWHO_TOOLS names a file holding the tool list,
-and SAYSWHO_HOST_PORT is the tool host's port. With no port it can only list tools, which is all `sayswho init` needs.
+It reads two environment variables, which the policy lets through: MAGISTRATE_TOOLS names a file holding the tool list,
+and MAGISTRATE_HOST_PORT is the tool host's port. With no port it can only list tools, which is all `magistrate init` needs.
 Standard library only, so the gateway can start it with any Python.
 """
 import json
@@ -17,9 +17,9 @@ LOOPBACK = "127.0.0.1"
 
 
 def main():
-    with open(os.environ["SAYSWHO_TOOLS"], encoding="utf-8") as f:
+    with open(os.environ["MAGISTRATE_TOOLS"], encoding="utf-8") as f:
         tools = json.load(f)
-    port = os.environ.get("SAYSWHO_HOST_PORT")
+    port = os.environ.get("MAGISTRATE_HOST_PORT")
     host = None
     stdout = sys.stdout.buffer
 

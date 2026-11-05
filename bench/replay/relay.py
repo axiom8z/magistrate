@@ -2,8 +2,8 @@
 with what the log says that call returned, so the gateway sees what it would have seen on the day.
 
 It reads two files named by environment variables, which the policy lets through to it:
-SAYSWHO_TOOLS holds the tool list, and SAYSWHO_CASE holds the logged calls. With no case it can only
-list tools, which is all `sayswho init` needs. Standard library only.
+MAGISTRATE_TOOLS holds the tool list, and MAGISTRATE_CASE holds the logged calls. With no case it can only
+list tools, which is all `magistrate init` needs. Standard library only.
 """
 import collections
 import json
@@ -19,7 +19,7 @@ def key(name, args):
 
 
 def load_outputs():
-    path = os.environ.get("SAYSWHO_CASE")
+    path = os.environ.get("MAGISTRATE_CASE")
     outputs = collections.defaultdict(collections.deque)
     if path:
         with open(path, encoding="utf-8") as f:
@@ -29,7 +29,7 @@ def load_outputs():
 
 
 def main():
-    with open(os.environ["SAYSWHO_TOOLS"], encoding="utf-8") as f:
+    with open(os.environ["MAGISTRATE_TOOLS"], encoding="utf-8") as f:
         tools = json.load(f)
     outputs = load_outputs()
     stdout = sys.stdout.buffer

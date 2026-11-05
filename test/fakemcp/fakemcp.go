@@ -10,7 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/axiom8z/sayswho/internal/rpc"
+	"github.com/axiom8z/magistrate/internal/rpc"
 )
 
 // EchoTool is the tool Default lists.

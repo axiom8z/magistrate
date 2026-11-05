@@ -18,11 +18,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/axiom8z/sayswho/internal/audit"
-	"github.com/axiom8z/sayswho/internal/policy"
-	"github.com/axiom8z/sayswho/internal/rpc"
-	"github.com/axiom8z/sayswho/internal/upstream"
-	"github.com/axiom8z/sayswho/test/fakemcp"
+	"github.com/axiom8z/magistrate/internal/audit"
+	"github.com/axiom8z/magistrate/internal/policy"
+	"github.com/axiom8z/magistrate/internal/rpc"
+	"github.com/axiom8z/magistrate/internal/upstream"
+	"github.com/axiom8z/magistrate/test/fakemcp"
 )
 
 // backend is one fake server behind a gateway under test.
@@ -227,7 +227,7 @@ func TestInitializeAnswersOurVersionWhateverTheClientAsks(t *testing.T) {
 		{"no version", `{"capabilities":{}}`},
 		{"empty params", `{}`},
 	}
-	want := `{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"sayswho","version":"` + upstream.Version + `"}}`
+	want := `{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"magistrate","version":"` + upstream.Version + `"}}`
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSession(t)

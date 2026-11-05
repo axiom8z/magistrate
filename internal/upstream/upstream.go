@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/axiom8z/sayswho/internal/rpc"
+	"github.com/axiom8z/magistrate/internal/rpc"
 )
 
 const (
@@ -180,7 +180,7 @@ func (s *Server) negotiate(ctx context.Context) error {
 	raw, err := s.request(ctx, "initialize", map[string]any{
 		"protocolVersion": ProtocolVersion,
 		"capabilities":    map[string]any{},
-		"clientInfo":      map[string]string{"name": "sayswho", "version": Version},
+		"clientInfo":      map[string]string{"name": "magistrate", "version": Version},
 	})
 	if err != nil {
 		return err

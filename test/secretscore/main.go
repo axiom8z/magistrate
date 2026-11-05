@@ -14,7 +14,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/axiom8z/sayswho/internal/secrets"
+	"github.com/axiom8z/magistrate/internal/secrets"
 )
 
 // testCase is one set line. Each call is scanned on its own, as the gateway would see it.

@@ -11,14 +11,14 @@ import (
 	"log"
 	"sync"
 
-	"github.com/axiom8z/sayswho/internal/approve"
-	"github.com/axiom8z/sayswho/internal/audit"
-	"github.com/axiom8z/sayswho/internal/gate"
-	"github.com/axiom8z/sayswho/internal/policy"
-	"github.com/axiom8z/sayswho/internal/prov"
-	"github.com/axiom8z/sayswho/internal/rpc"
-	"github.com/axiom8z/sayswho/internal/secrets"
-	"github.com/axiom8z/sayswho/internal/upstream"
+	"github.com/axiom8z/magistrate/internal/approve"
+	"github.com/axiom8z/magistrate/internal/audit"
+	"github.com/axiom8z/magistrate/internal/gate"
+	"github.com/axiom8z/magistrate/internal/policy"
+	"github.com/axiom8z/magistrate/internal/prov"
+	"github.com/axiom8z/magistrate/internal/rpc"
+	"github.com/axiom8z/magistrate/internal/secrets"
+	"github.com/axiom8z/magistrate/internal/upstream"
 )
 
 // Config is what a Gateway enforces. HasPrompt is separate from Prompt because an empty prompt file is
@@ -168,7 +168,7 @@ func (g *Gateway) initialize(m *rpc.Message) {
 	g.reply(m.ID, map[string]any{
 		"protocolVersion": upstream.ProtocolVersion,
 		"capabilities":    map[string]any{"tools": map[string]any{}},
-		"serverInfo":      map[string]string{"name": "sayswho", "version": upstream.Version},
+		"serverInfo":      map[string]string{"name": "magistrate", "version": upstream.Version},
 	})
 }
 

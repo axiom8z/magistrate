@@ -15,7 +15,7 @@ param([switch]$KeepTemp)
 
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$work = Join-Path ([IO.Path]::GetTempPath()) ('sayswho-interop-' + [guid]::NewGuid().ToString('N'))
+$work = Join-Path ([IO.Path]::GetTempPath()) ('magistrate-interop-' + [guid]::NewGuid().ToString('N'))
 $exe = if ($env:OS -eq 'Windows_NT') { '.exe' } else { '' }
 $script:failures = 0
 $stub = $null
@@ -62,13 +62,13 @@ function Invoke-Client([string]$name, [string]$file, [string[]]$arguments, [int]
 }
 
 # Milestone 3's flow: the model reads the inbox, then sends to $to. The prompt file says what the user
-# asked for, a stub model of its own plays the two calls, and "sayswho run" starts the real client.
+# asked for, a stub model of its own plays the two calls, and "magistrate run" starts the real client.
 function Invoke-MailFlow([string]$name, [string]$prompt, [string]$to, [string[]]$clientFlags = @(), [string]$body = 'the report') {
     $promptFile = Join-Path $work "$name.prompt"
     [IO.File]::WriteAllText($promptFile, $prompt)
     $steps = Join-Path $work "$name.steps"
-    [IO.File]::WriteAllText($steps, '[{"tool":"mcp__sayswho__mail__read_inbox","input":{}},' +
-        '{"tool":"mcp__sayswho__mail__send_mail","input":{"to":"' + $to + '","body":"' + $body + '"}}]')
+    [IO.File]::WriteAllText($steps, '[{"tool":"mcp__magistrate__mail__read_inbox","input":{}},' +
+        '{"tool":"mcp__magistrate__mail__send_mail","input":{"to":"' + $to + '","body":"' + $body + '"}}]')
     $flowPort = Join-Path $work "$name.port"
     $flowStub = Start-Process -FilePath $model -NoNewWindow -PassThru `
         -ArgumentList ('-log "{0}" -portfile "{1}" -steps "{2}"' -f (Join-Path $work "$name.model.log"), $flowPort, $steps) `
@@ -79,14 +79,14 @@ function Invoke-MailFlow([string]$name, [string]$prompt, [string]$to, [string[]]
         $env:ANTHROPIC_BASE_URL = 'http://127.0.0.1:' + (Get-Content $flowPort).Trim()
         return Invoke-Client $name $gateway (@('run', '--policy', $mailPolicy, '--state', (Join-Path $work "$name-state"),
                 '--prompt-file', $promptFile, '--client', $claude.Source, '--', '-p', '--model', 'stub',
-                '--allowedTools', 'mcp__sayswho__mail__read_inbox,mcp__sayswho__mail__send_mail',
+                '--allowedTools', 'mcp__magistrate__mail__read_inbox,mcp__magistrate__mail__send_mail',
                 '--output-format', 'json') + $clientFlags) 120
     } finally {
         Stop-Process -Id $flowStub.Id -Force -ErrorAction SilentlyContinue
     }
 }
 
-# Runs sayswho verify, prints what it said, and returns the exit code.
+# Runs magistrate verify, prints what it said, and returns the exit code.
 function Invoke-Verify([string]$name, [string[]]$arguments) {
     $code = Invoke-Client $name $gateway (@('verify') + $arguments) 30
     $said = (Read-Text (Join-Path $work "$name.out")) + (Read-Text (Join-Path $work "$name.err"))
@@ -100,12 +100,12 @@ try {
     Write-Output "work folder: $work"
 
     # Build.
-    $gateway = Join-Path $work "sayswho$exe"
+    $gateway = Join-Path $work "magistrate$exe"
     $echo = Join-Path $work "echoserver$exe"
     $model = Join-Path $work "stubmodel$exe"
     Push-Location $repo
     try {
-        go build -o $gateway ./cmd/sayswho
+        go build -o $gateway ./cmd/magistrate
         Check 'build the gateway' ($LASTEXITCODE -eq 0)
         go build -o $echo ./test/interop/echoserver
         Check 'build the echo server' ($LASTEXITCODE -eq 0)
@@ -130,7 +130,7 @@ try {
     $canary = 'interop-canary-' + [guid]::NewGuid().ToString('N')
     $modelLog = Join-Path $work 'model.log'
     $portFile = Join-Path $work 'port.txt'
-    $stubArgs = '-log "{0}" -portfile "{1}" -tool mcp__sayswho__echo__echo -text {2}' -f $modelLog, $portFile, $canary
+    $stubArgs = '-log "{0}" -portfile "{1}" -tool mcp__magistrate__echo__echo -text {2}' -f $modelLog, $portFile, $canary
     $stub = Start-Process -FilePath $model -ArgumentList $stubArgs -NoNewWindow -PassThru `
         -RedirectStandardOutput (Join-Path $work 'stub.out') -RedirectStandardError (Join-Path $work 'stub.err')
     for ($i = 0; $i -lt 100 -and -not (Test-Path $portFile); $i++) { Start-Sleep -Milliseconds 50 }
@@ -154,8 +154,8 @@ try {
     Write-Json $policy @{ mode = 'pass'; servers = @{ echo = @{ command = $echo } } }
     $entry = @{ type = 'stdio'; command = $gateway; args = @('serve', '--policy', $policy, '--state', $state) }
     $mcpConfig = Join-Path $work 'mcp-config.json'
-    Write-Json $mcpConfig @{ mcpServers = @{ sayswho = $entry } }
-    Write-Json (Join-Path $env:CLAUDE_CONFIG_DIR '.claude.json') @{ hasCompletedOnboarding = $true; mcpServers = @{ sayswho = $entry } }
+    Write-Json $mcpConfig @{ mcpServers = @{ magistrate = $entry } }
+    Write-Json (Join-Path $env:CLAUDE_CONFIG_DIR '.claude.json') @{ hasCompletedOnboarding = $true; mcpServers = @{ magistrate = $entry } }
 
     # Milestone 1: mcp list connects through the gateway.
     Write-Output '--- claude mcp list'
@@ -163,13 +163,13 @@ try {
     $listed = Read-Text (Join-Path $work 'mcp-list.out')
     $listed -split "`r?`n" | Where-Object { $_ } | ForEach-Object { Write-Output ('      ' + $_.Replace($work, '<work>')) }
     Check 'claude mcp list exits 0' ($code -eq 0) (Read-Text (Join-Path $work 'mcp-list.err'))
-    Check 'claude mcp list connects through the gateway' ($listed -match 'sayswho:.*Connected') $listed
+    Check 'claude mcp list connects through the gateway' ($listed -match 'magistrate:.*Connected') $listed
 
     # Milestone 1: one real tool call goes through it from claude -p.
     Write-Output '--- claude -p'
     $code = Invoke-Client 'print' $claude.Source @(
         '-p', 'say hi', '--tools', '', '--strict-mcp-config', '--mcp-config', $mcpConfig,
-        '--model', 'stub', '--allowedTools', 'mcp__sayswho__echo__echo', '--output-format', 'json') 120
+        '--model', 'stub', '--allowedTools', 'mcp__magistrate__echo__echo', '--output-format', 'json') 120
     $printed = Read-Text (Join-Path $work 'print.out')
     $errors = Read-Text (Join-Path $work 'print.err')
     $modelSaw = Read-Text $modelLog
@@ -183,7 +183,7 @@ try {
     Check 'the client finished the turn' ($printed -match '"result":"done"') $printed
 
     # Milestone 2: the log holds the call and verifies; flip a byte and it fails.
-    Write-Output '--- sayswho verify'
+    Write-Output '--- magistrate verify'
     $logText = Read-Text $log
     Check 'the log holds the decision' ($logText -match '"tool":"echo__echo","decision":"allow"') $logText
     Check 'the argument value is not in the log' (-not $logText.Contains($canary))
@@ -203,7 +203,7 @@ try {
     Check 'verify fails with exit 1 when lines before a saved head are gone' ((Invoke-Verify 'verify-cut' @($cut, '--head', $head)) -eq 1)
 
     # Milestone 3: init drafts a policy from what the server lists, and that policy is enforced.
-    Write-Output '--- sayswho init'
+    Write-Output '--- magistrate init'
     $sends = Join-Path $work 'sends.log'
     $mailBase = Join-Path $work 'mail-base.json'
     Write-Json $mailBase @{ mode = 'value'; servers = @{ mail = @{ command = $echo; args = @('-sends', $sends) } } }
@@ -216,18 +216,18 @@ try {
 
     # A read, then a send to someone the user never named. Print mode has no person to ask, so the
     # client cancels the question: the call must be refused, and the model must be told the rule.
-    Write-Output '--- sayswho run: a send to someone not in the prompt'
+    Write-Output '--- magistrate run: a send to someone not in the prompt'
     $code = Invoke-MailFlow 'refused' 'Summarize my inbox and tell alice@corp.example what it says.' 'mallory@evil.example'
     $modelSaw = Read-Text (Join-Path $work 'refused.model.log')
     $logText = Read-Text (Join-Path (Join-Path $work 'refused-state') 'audit.log')
     Check 'run exits 0 after the refusal' ($code -eq 0) ((Read-Text (Join-Path $work 'refused.err')) + (Read-Text (Join-Path $work 'refused.out')))
-    Check 'the rule ID reached the model' ($modelSaw -match 'Blocked by SaysWho, rule ask-cancelled') $modelSaw
+    Check 'the rule ID reached the model' ($modelSaw -match 'Blocked by Magistrate, rule ask-cancelled') $modelSaw
     Check 'the server never received the send' (-not (Read-Text $sends).Contains('mallory')) (Read-Text $sends)
     Check 'the log holds why it asked and how that ended' (($logText -match '"decision":"ask","rule":"unsourced-control"') -and ($logText -match '"decision":"block","rule":"ask-cancelled"')) $logText
     Check 'the recipient is not in the log' (-not $logText.Contains('mallory'))
 
     # The same flow with a recipient named in the prompt goes through, and nobody is asked.
-    Write-Output '--- sayswho run: a send to someone named in the prompt'
+    Write-Output '--- magistrate run: a send to someone named in the prompt'
     $code = Invoke-MailFlow 'allowed' 'Summarize my inbox and tell alice@corp.example what it says.' 'alice@corp.example'
     $logText = Read-Text (Join-Path (Join-Path $work 'allowed-state') 'audit.log')
     Check 'run exits 0' ($code -eq 0) ((Read-Text (Join-Path $work 'allowed.err')) + (Read-Text (Join-Path $work 'allowed.out')))
@@ -237,22 +237,22 @@ try {
     Check 'verify passes on that log' ((Invoke-Verify 'verify-allowed' @((Join-Path (Join-Path $work 'allowed-state') 'audit.log'))) -eq 0)
 
     # DESIGN section 7 asks whether --restricted works with this setup. This records the answer.
-    Write-Output '--- sayswho run: the same two flows with --restricted'
+    Write-Output '--- magistrate run: the same two flows with --restricted'
     $code = Invoke-MailFlow 'restricted-allowed' 'Summarize my inbox and tell bob@corp.example what it says.' 'bob@corp.example' @('--restricted')
     Check 'with --restricted, a named recipient still goes through' (($code -eq 0) -and (Read-Text $sends).Contains('SENT to=bob@corp.example')) ((Read-Text (Join-Path $work 'restricted-allowed.err')) + (Read-Text (Join-Path $work 'restricted-allowed.out')))
     $code = Invoke-MailFlow 'restricted-refused' 'Summarize my inbox and tell bob@corp.example what it says.' 'mallory@evil.example' @('--restricted')
     Check 'with --restricted, an unnamed recipient is still refused' (-not (Read-Text $sends).Contains('mallory')) (Read-Text $sends)
     $modelSaw = Read-Text (Join-Path $work 'restricted-refused.model.log')
-    Check 'with --restricted, the model still sees no built-in tools and the rule ID' (($modelSaw -match 'Blocked by SaysWho') -and ($modelSaw -notmatch 'builtinTools=true')) $modelSaw
+    Check 'with --restricted, the model still sees no built-in tools and the rule ID' (($modelSaw -match 'Blocked by Magistrate') -and ($modelSaw -notmatch 'builtinTools=true')) $modelSaw
 
     # Milestone 5: a known-format secret is blocked with nobody asked, even going to a named recipient.
     # The token is fake and built here, so that no complete one sits in a file.
-    Write-Output '--- sayswho run: a credential in a send'
+    Write-Output '--- magistrate run: a credential in a send'
     $token = 'gh' + 'p_' + [guid]::NewGuid().ToString('N') + 'aB3dE6'
     $code = Invoke-MailFlow 'secret' 'Summarize my inbox and tell carol@corp.example what it says.' 'carol@corp.example' @() "my token is $token"
     $modelSaw = Read-Text (Join-Path $work 'secret.model.log')
     $logText = Read-Text (Join-Path (Join-Path $work 'secret-state') 'audit.log')
-    Check 'the secret rule reached the model' ($modelSaw -match 'Blocked by SaysWho, rule github-token') $modelSaw
+    Check 'the secret rule reached the model' ($modelSaw -match 'Blocked by Magistrate, rule github-token') $modelSaw
     Check 'the server never received that send' (-not (Read-Text $sends).Contains('carol')) (Read-Text $sends)
     Check 'nobody was asked about it' ($logText -notmatch '"decision":"ask"') $logText
     Check 'the token is not in the log' (-not $logText.Contains($token))

@@ -1,4 +1,4 @@
-// Command sayswho is a security gateway for AI agents. It proxies MCP over stdio between an agent and
+// Command magistrate is a security gateway for AI agents. It proxies MCP over stdio between an agent and
 // its tools, and keeps a hash-chained log of every decision. This package only reads the command
 // line; the work is in the internal packages.
 package main
@@ -21,10 +21,10 @@ import (
 	"syscall"
 	"unicode/utf8"
 
-	"github.com/axiom8z/sayswho/internal/audit"
-	"github.com/axiom8z/sayswho/internal/front"
-	"github.com/axiom8z/sayswho/internal/policy"
-	"github.com/axiom8z/sayswho/internal/upstream"
+	"github.com/axiom8z/magistrate/internal/audit"
+	"github.com/axiom8z/magistrate/internal/front"
+	"github.com/axiom8z/magistrate/internal/policy"
+	"github.com/axiom8z/magistrate/internal/upstream"
 )
 
 // Exit codes, part of the documented interface.
@@ -35,10 +35,10 @@ const (
 )
 
 const usageText = `usage:
-  sayswho serve --policy <file> --state <dir> [--prompt-file <file>]
-  sayswho run --policy <file> --state <dir> --prompt-file <file> [--client <path>] [-- client flags]
-  sayswho init --policy <file>
-  sayswho verify <log> [--head <hex>]
+  magistrate serve --policy <file> --state <dir> [--prompt-file <file>]
+  magistrate run --policy <file> --state <dir> --prompt-file <file> [--client <path>] [-- client flags]
+  magistrate init --policy <file>
+  magistrate verify <log> [--head <hex>]
 `
 
 // draftAsks is the question budget a draft starts with. DESIGN section 4: interrupted tasks in the
@@ -73,7 +73,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // usage reports a command line that can't run, saying why if there is more to say than the syntax.
 func usage(stderr io.Writer, err error) int {
 	if err != nil {
-		fmt.Fprintf(stderr, "sayswho: %v\n", err)
+		fmt.Fprintf(stderr, "magistrate: %v\n", err)
 	}
 	fmt.Fprint(stderr, usageText)
 	return exitUsage
@@ -97,25 +97,25 @@ func serve(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	p, err := policy.Load(*policyPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "sayswho: policy %s: %v\n", *policyPath, err)
+		fmt.Fprintf(stderr, "magistrate: policy %s: %v\n", *policyPath, err)
 		return exitUsage
 	}
 	if err := os.MkdirAll(*stateDir, 0o700); err != nil {
-		fmt.Fprintf(stderr, "sayswho: state directory: %v\n", err)
+		fmt.Fprintf(stderr, "magistrate: state directory: %v\n", err)
 		return exitFailed
 	}
 	auditLog, err := audit.Open(*stateDir)
 	if err != nil {
-		fmt.Fprintf(stderr, "sayswho: %v\n", err)
+		fmt.Fprintf(stderr, "magistrate: %v\n", err)
 		return exitFailed
 	}
 	start := func(ctx context.Context) []*upstream.Server {
 		return upstream.StartAll(ctx, serverConfigs(p))
 	}
-	notes := log.New(stderr, "sayswho: ", 0)
+	notes := log.New(stderr, "magistrate: ", 0)
 	cfg := front.Config{Policy: p, Prompt: prompt, HasPrompt: hasPrompt, StateDir: *stateDir}
 	if err := front.New(auditLog, notes, cfg).Serve(stdin, stdout, start); err != nil {
-		fmt.Fprintf(stderr, "sayswho: %v\n", err)
+		fmt.Fprintf(stderr, "magistrate: %v\n", err)
 		return exitFailed
 	}
 	return exitOK
@@ -138,16 +138,16 @@ func runClient(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// Both are checked here as well as in serve, because a client can bury a server that fails to start.
 	prompt, err := readPrompt(*promptPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "sayswho: prompt file: %v\n", err)
+		fmt.Fprintf(stderr, "magistrate: prompt file: %v\n", err)
 		return exitUsage
 	}
 	if _, err := policy.Load(*policyPath); err != nil {
-		fmt.Fprintf(stderr, "sayswho: policy %s: %v\n", *policyPath, err)
+		fmt.Fprintf(stderr, "magistrate: policy %s: %v\n", *policyPath, err)
 		return exitUsage
 	}
 	config, err := writeClientConfig(*policyPath, *stateDir, *promptPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "sayswho: client config: %v\n", err)
+		fmt.Fprintf(stderr, "magistrate: client config: %v\n", err)
 		return exitFailed
 	}
 	argv := append([]string{"--tools", "", "--strict-mcp-config", "--mcp-config", config}, flags.Args()...)
@@ -159,7 +159,7 @@ func runClient(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return ended.ExitCode()
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "sayswho: starting the client: %v\n", err)
+		fmt.Fprintf(stderr, "magistrate: starting the client: %v\n", err)
 		return exitFailed
 	}
 	return exitOK
@@ -178,7 +178,7 @@ func writeClientConfig(policyPath, stateDir, promptPath string) (string, error) 
 			return "", err
 		}
 	}
-	raw, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"sayswho": map[string]any{
+	raw, err := json.Marshal(map[string]any{"mcpServers": map[string]any{"magistrate": map[string]any{
 		"type": "stdio", "command": exe,
 		"args": []string{"serve", "--policy", paths[0], "--state", paths[1], "--prompt-file", paths[2]},
 	}}})
@@ -204,7 +204,7 @@ func draftPolicy(args []string, stdout, stderr io.Writer) int {
 	}
 	p, err := policy.Load(*policyPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "sayswho: policy %s: %v\n", *policyPath, err)
+		fmt.Fprintf(stderr, "magistrate: policy %s: %v\n", *policyPath, err)
 		return exitUsage
 	}
 	servers := upstream.StartAll(context.Background(), serverConfigs(p))
@@ -214,7 +214,7 @@ func draftPolicy(args []string, stdout, stderr io.Writer) int {
 		}
 	}()
 	if err := fillDraft(p, servers); err != nil {
-		fmt.Fprintf(stderr, "sayswho: %v\n", err)
+		fmt.Fprintf(stderr, "magistrate: %v\n", err)
 		return exitFailed
 	}
 	raw, err := json.Marshal(p, jsontext.WithIndent("  "), json.Deterministic(true))
@@ -222,7 +222,7 @@ func draftPolicy(args []string, stdout, stderr io.Writer) int {
 		_, err = policy.Parse(raw) // what comes out has to load, or it is no use to anyone
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "sayswho: the draft does not load: %v\n", err)
+		fmt.Fprintf(stderr, "magistrate: the draft does not load: %v\n", err)
 		return exitFailed
 	}
 	fmt.Fprintf(stdout, "%s\n", raw)
@@ -299,7 +299,7 @@ func verify(args []string, stdout, stderr io.Writer) int {
 	}
 	sum, err := audit.Verify(path, head)
 	if err != nil {
-		fmt.Fprintf(stderr, "sayswho: verify failed for %s: %v\n", path, err)
+		fmt.Fprintf(stderr, "magistrate: verify failed for %s: %v\n", path, err)
 		return exitFailed
 	}
 	fmt.Fprintf(stdout, "ok: %d records, head %s\n", sum.Count, sum.Head)

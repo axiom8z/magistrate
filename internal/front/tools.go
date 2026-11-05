@@ -13,14 +13,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axiom8z/sayswho/internal/approve"
-	"github.com/axiom8z/sayswho/internal/audit"
-	"github.com/axiom8z/sayswho/internal/gate"
-	"github.com/axiom8z/sayswho/internal/policy"
-	"github.com/axiom8z/sayswho/internal/prov"
-	"github.com/axiom8z/sayswho/internal/rpc"
-	"github.com/axiom8z/sayswho/internal/secrets"
-	"github.com/axiom8z/sayswho/internal/upstream"
+	"github.com/axiom8z/magistrate/internal/approve"
+	"github.com/axiom8z/magistrate/internal/audit"
+	"github.com/axiom8z/magistrate/internal/gate"
+	"github.com/axiom8z/magistrate/internal/policy"
+	"github.com/axiom8z/magistrate/internal/prov"
+	"github.com/axiom8z/magistrate/internal/rpc"
+	"github.com/axiom8z/magistrate/internal/secrets"
+	"github.com/axiom8z/magistrate/internal/upstream"
 )
 
 // maxCalls bounds the calls running at once. Past it a call is refused rather than queued: the read
@@ -96,7 +96,7 @@ func blocked(rule string) jsontext.Value {
 		text = secretText
 	}
 	raw, _ := json.Marshal(toolResult{ // cannot fail: these are our own constant strings
-		Content: []textBlock{{"text", "Blocked by SaysWho, rule " + rule + ": " + text}},
+		Content: []textBlock{{"text", "Blocked by Magistrate, rule " + rule + ": " + text}},
 		IsError: true,
 	})
 	return raw
@@ -330,7 +330,7 @@ func (g *Gateway) ask(ctx context.Context, message string) string {
 	answer := make(chan *rpc.Message, 1)
 	g.mu.Lock()
 	g.asked++
-	id := jsontext.Value(fmt.Sprintf(`"sayswho-ask-%d"`, g.asked))
+	id := jsontext.Value(fmt.Sprintf(`"magistrate-ask-%d"`, g.asked))
 	g.questions[string(id)] = answer
 	g.mu.Unlock()
 	defer func() {

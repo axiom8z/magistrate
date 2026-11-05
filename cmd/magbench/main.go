@@ -1,7 +1,7 @@
-// Command swbench measures the delay a gateway adds to MCP calls (DESIGN section 8).
+// Command magbench measures the delay a gateway adds to MCP calls (DESIGN section 8).
 //
-//	swbench stub
-//	swbench run [flags] [-- gateway command line]
+//	magbench stub
+//	magbench run [flags] [-- gateway command line]
 //
 // stub is an instant MCP server. run measures it directly and, given a command line, through a gateway
 // whose policy starts the stub, in interleaved rounds. An argument equal to {state} becomes a new
@@ -29,7 +29,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/axiom8z/sayswho/internal/rpc"
+	"github.com/axiom8z/magistrate/internal/rpc"
 )
 
 const (
@@ -58,7 +58,7 @@ func main() {
 	case len(os.Args) > 1 && os.Args[1] == "run":
 		os.Exit(run(os.Args[2:], os.Stdout))
 	default:
-		fmt.Fprintln(os.Stderr, "usage: swbench stub | swbench run [flags] [-- gateway command line]")
+		fmt.Fprintln(os.Stderr, "usage: magbench stub | magbench run [flags] [-- gateway command line]")
 		os.Exit(2)
 	}
 }
@@ -83,7 +83,7 @@ func stub(in io.Reader, out io.Writer) {
 func stubBody(m *rpc.Message, bodies map[int]string) string {
 	switch m.Method {
 	case "initialize":
-		return `,"result":{"protocolVersion":"` + protocol + `","capabilities":{"tools":{}},"serverInfo":{"name":"swbench","version":"0"}}}` + "\n"
+		return `,"result":{"protocolVersion":"` + protocol + `","capabilities":{"tools":{}},"serverInfo":{"name":"magbench","version":"0"}}}` + "\n"
 	case "tools/list":
 		return `,"result":{"tools":[{"name":"` + toolName + `","inputSchema":{"type":"object","properties":{"size":{"type":"integer"}}}}]}}` + "\n"
 	case "tools/call":
@@ -123,7 +123,7 @@ func startTarget(argv []string) (*target, error) {
 	t := &target{}
 	argv = slices.Clone(argv)
 	if i := slices.Index(argv, stateSlot); i >= 0 {
-		dir, err := os.MkdirTemp("", "swbench-state-")
+		dir, err := os.MkdirTemp("", "magbench-state-")
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +153,7 @@ func startTarget(argv []string) (*target, error) {
 }
 
 func (t *target) handshake(began int64) error {
-	init := `{"protocolVersion":"` + protocol + `","capabilities":{},"clientInfo":{"name":"swbench","version":"0"}}`
+	init := `{"protocolVersion":"` + protocol + `","capabilities":{},"clientInfo":{"name":"magbench","version":"0"}}`
 	if _, err := t.request(`"init"`, "initialize", init); err != nil {
 		return err
 	}
@@ -369,16 +369,16 @@ func parseFlags(args []string, stubArgv []string) (*config, error) {
 func run(args []string, out io.Writer) int {
 	exe, err := os.Executable()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "swbench:", err)
+		fmt.Fprintln(os.Stderr, "magbench:", err)
 		return 1
 	}
 	c, err := parseFlags(args, []string{exe, "stub"})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "swbench:", err)
+		fmt.Fprintln(os.Stderr, "magbench:", err)
 		return 2
 	}
 	if err := rounds(c, out); err != nil {
-		fmt.Fprintln(os.Stderr, "swbench:", err)
+		fmt.Fprintln(os.Stderr, "magbench:", err)
 		return 1
 	}
 	return 0

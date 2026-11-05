@@ -1,4 +1,4 @@
-# SaysWho design
+# Magistrate design
 
 `S/` = `src/agentdojo/` and `D/` = `src/agentdojo/default_suites/` in the AgentDojo repository at commit `089ed468`, as are `runs/` paths. "Rerun" = scripts applying rules to the published logs of six already-opened models, leaving 16 pipelines unopened: `bench/forecast/revised.py` and `bench/forecast/rev_rows.py`, built on `bench/forecast/final_config.py` and `bench/forecast/trace_policy.py`. Their recorded output is in `docs/evidence/forecast/`. "Static" = `bench/forecast/static_gate.py`. They aren't the gateway. Their numbers are forecasts, direction mixed: counting any interruption as a break pushes kept down, tuning on these suites pushes it up.
 
@@ -20,7 +20,7 @@
 
 ## 1. Summary
 
-SaysWho is named for the one question it asks of every risky value. It is one Go binary, standard library only, about 4,000 lines plus tests, proxying MCP over stdio between an agent and its tools. It records when an untrusted tool was called. A risky call's control arguments must trace to the user's prompt, an operator list, a tool nobody else can write, or a bound lookup ID; otherwise a person is asked, and with no person the call is refused. Known-format secrets are blocked and redacted; every decision enters a hash-chained log. This is value matching, a heuristic.
+Magistrate asks one question of every risky value: who said that? It is one Go binary, standard library only, about 4,000 lines plus tests, proxying MCP over stdio between an agent and its tools. It records when an untrusted tool was called. A risky call's control arguments must trace to the user's prompt, an operator list, a tool nobody else can write, or a bound lookup ID; otherwise a person is asked, and with no person the call is refused. Known-format secrets are blocked and redacted; every decision enters a hash-chained log. This is value matching, a heuristic.
 
 [Similar](https://github.com/cgrtml/reasongate/blob/main/RESULTS.md) [gateways](https://github.com/YuvGev00/taintwall) exist, and strict accounting is not new. taintwall has hijack replay, a frozen policy, bootstrap intervals, McNemar and the 20% headroom rule used here (credited; its splits differ), with 44/335 for its taint layer. ReasonGate has a stdio gateway, elicitation and delivery-aware replay, with 3.1% attacks at 66.0% utility on 609 pairs. Real differences, none unique: Go with no dependencies; the benchmark drives the shipped binary over MCP (theirs appear to replay in-process); replay of others' logs; ID and link rules aimed at taintwall's stated misses (28 by file ID, 3 links).
 
@@ -47,7 +47,7 @@ result: upstream -> block check -> secrets (redact) -> prov.Observe -> audit -> 
 
 |Package|Job|Lines|
 |---|---|---|
-|`cmd/sayswho`|`serve`, `run`, `init`, `verify`|307|
+|`cmd/magistrate`|`serve`, `run`, `init`, `verify`|307|
 |`internal/rpc`|1 MiB line reader, strict [`encoding/json/v2`](https://go.dev/doc/go1.27), ID map|191|
 |`internal/front`|MCP methods, held-call approval|841|
 |`internal/upstream`|`Cmd.Env` allowlist, timeouts, upstream refusals|452|
@@ -57,7 +57,7 @@ result: upstream -> block check -> secrets (redact) -> prov.Observe -> audit -> 
 |`internal/secrets`|24 rules, decode loop, redaction, registered values|491|
 |`internal/approve`|Prompt text, budget, digest|184|
 |`internal/audit`|Chain, HMAC, verifier, state directory lock|374|
-|`cmd/swbench`|Open-loop load, stub server|532|
+|`cmd/magbench`|Open-loop load, stub server|532|
 |Total|CI fails above 5,000 non-test lines; Python harness about 2,000|4,489|
 
 Fail closed: bad policy stops startup; unreadable latch means exposed; audit failure blocks; a log with records and no key stops startup. A state directory takes one gateway at a time, by an operating system lock that goes when the process does, because two would fork the chain for good. Cut: 2026-07-28 era, HTTP, OAuth, resources, prompts, full JSON Schema validation (stated gap).
@@ -66,7 +66,7 @@ A split character is repaired, not refused. A server cutting text at a fixed len
 
 One bad tool must not cost every server's tools. All servers share one list, and Claude Code 2.1.302 rejects a whole list over a null `properties`, a null `required` or a null inside `required`, so such a tool is hidden with a note to the operator.
 
-**Upstream requests:** SaysWho advertises no client capabilities upstream and answers `elicitation/create`, `sampling/createMessage` and `roots/list` with `-32601`, so no server can open a look-alike dialog. **[Result blocks](https://modelcontextprotocol.io/specification/2025-11-25/server/tools):** `image`, `audio`, `resource_link` and `resource` return `isError` with a rule ID. Text and `structuredContent` are both scanned, because they can disagree.
+**Upstream requests:** Magistrate advertises no client capabilities upstream and answers `elicitation/create`, `sampling/createMessage` and `roots/list` with `-32601`, so no server can open a look-alike dialog. **[Result blocks](https://modelcontextprotocol.io/specification/2025-11-25/server/tools):** `image`, `audio`, `resource_link` and `resource` return `isError` with a rule ID. Text and `structuredContent` are both scanned, because they can disagree.
 
 ## 3. Trust and taint model
 
@@ -121,7 +121,7 @@ This document names answers, so the author's labels are published as "author lab
 |Budget left, this digest not already refused|Ask|
 |Otherwise|Block|
 
-Ask sends [`elicitation/create`](https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation) while holding the call; only explicit accept forwards. SaysWho writes the prompt text, escaped. No "always allow"; [users accept 93%](https://www.anthropic.com/engineering/claude-code-auto-mode). Rerun: interrupted tasks ask at most 4, p90 3, so five suffices.
+Ask sends [`elicitation/create`](https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation) while holding the call; only explicit accept forwards. Magistrate writes the prompt text, escaped. No "always allow"; [users accept 93%](https://www.anthropic.com/engineering/claude-code-auto-mode). Rerun: interrupted tasks ask at most 4, p90 3, so five suffices.
 
 **A normal task that reads an email:**
 - Workspace 15 (`D/v1/workspace/user_tasks.py:1112-1137`). An event with only title, location and times passes; an injection could write those too (conceded). When gpt-4o added participants (`runs/gpt-4o-2024-05-13/workspace/user_task_15/none/none.json`), that call asks: "james.miller@yahoo.com and emma.johnson@bluesparrowtech.com are not in your request; first seen in search_emails."
@@ -141,12 +141,12 @@ Lines of `{"rec":{...},"hash":"..."}`, `hash = SHA-256(prev || exact rec bytes)`
 
 ## 7. How it connects
 
-**Real clients:** stdio. `sayswho run --prompt-file p` starts `claude --tools "" --strict-mcp-config --mcp-config <generated> "<prompt>"`. [The CLI page](https://code.claude.com/docs/en/cli-reference) documents `--tools` for built-ins; that built-ins bypass an MCP gateway is an inference. With no prompt file, arguments sent before the latch become sources (rerun: 47.7-50.0% kept). If the dialog hand check fails, publish "ask means deny on this client". [`--restricted`](https://code.claude.com/docs/en/cli-reference) loads only managed settings and `--settings`; with Claude Code 2.1.302 in print mode, `test/interop/run.ps1` shows the same refusal and the same allowed send with it as without it. Print mode answers every question with cancel (`docs/evidence/claude-code-2.1.302-print-mode-elicitation.log`), so there an ask is a refusal.
+**Real clients:** stdio. `magistrate run --prompt-file p` starts `claude --tools "" --strict-mcp-config --mcp-config <generated> "<prompt>"`. [The CLI page](https://code.claude.com/docs/en/cli-reference) documents `--tools` for built-ins; that built-ins bypass an MCP gateway is an inference. With no prompt file, arguments sent before the latch become sources (rerun: 47.7-50.0% kept). If the dialog hand check fails, publish "ask means deny on this client". [`--restricted`](https://code.claude.com/docs/en/cli-reference) loads only managed settings and `--settings`; with Claude Code 2.1.302 in print mode, `test/interop/run.ps1` shows the same refusal and the same allowed send with it as without it. Print mode answers every question with cancel (`docs/evidence/claude-code-2.1.302-print-mode-elicitation.log`), so there an ask is a refusal.
 
 **Harness:** Go holds no benchmark code, and a test asserts only `front` calls `Decide`.
 
 ```
-harness (client) -> sayswho.exe -> relay.py -> socket -> harness (tool host) -> run_function(env, ...)
+harness (client) -> magistrate.exe -> relay.py -> socket -> harness (tool host) -> run_function(env, ...)
 ```
 
 `GatewayRuntime` overrides `FunctionsRuntime.run_function` (`S/functions_runtime.py:246`) and sends `tools/call`; each case gets a fresh process and state directory. The tool host returns `tool_result_to_str` text plus `structuredContent`, wrapping lists as `{"result":[...]}` because the spec requires an object; `ScrubBlocked` removes refused calls.
@@ -158,7 +158,7 @@ harness (client) -> sayswho.exe -> relay.py -> socket -> harness (tool host) -> 
 **Arms:** `none`; `pass` (must equal `none`); `session` (any act after the latch asks); `value`; `value-noids`; `value-noprompt`; `unreviewed` (the `init` draft).
 
 - **T0, log replay: free, no install, Python 3.14.** `bench/replay_logs.py` drives the binary against `runs/` outputs, parsed by a small YAML reader. Kept: logged utility, no interruption. Stopped: an interrupted call of the injection's tool family with its marker, by a map fixed at F1. Behaviour after a block is unseen. Six opened models tune; the other 16 are "same tasks, new models". Cohorts go by log count, since 5 of 6 opened models log no `benchmark_version` (`bench/forecast/log_versions.py`). 15 of the 16 have 629 logs, so T0 says nothing about workspace 6-13 on new undefended models; `runs/Meta-SecAlign-70B` has 949 but is [a hardened model](https://arxiv.org/pdf/2602.03117) and prints apart.
-- **T1, ground-truth replay: Python 3.12, AgentDojo at `089ed468`.** A per-pair element runs user calls, continuing after a refusal. When a result carries injected text it marks `delivered`, runs `injection_task.ground_truth(env)`, then resumes, so utility under attack exists. "Stops X% given a hijack" counts delivered pairs; undelivered pairs get their own row ([#208](https://github.com/ethz-spylab/agentdojo/issues/208)): expect at least 25, since slack 1, 4, 6, 11, 15 are refused at the page holding the vector (`bench/forecast/delivery.py`). All 949 rows print: 609 ground-truth pairs; workspace 6-13 (320, empty ground truth, `D/v1_2/workspace/injection_tasks.py:90-91`) from a fresh agent's sequences, confirmed `security()=True` ungated, else "unscored" by name; travel 6 (20) as attack wins. Utility is optimistic: user bodies are placeholders (`D/v1/slack/user_tasks.py:49`), so the link rule never fires.
+- **T1, ground-truth replay: Python 3.14, AgentDojo at `089ed468`.** A per-pair element runs user calls, continuing after a refusal. When a result carries injected text it marks `delivered`, runs `injection_task.ground_truth(env)`, then resumes, so utility under attack exists. "Stops X% given a hijack" counts delivered pairs; undelivered pairs get their own row ([#208](https://github.com/ethz-spylab/agentdojo/issues/208)): expect at least 25, since slack 1, 4, 6, 11, 15 are refused at the page holding the vector (`bench/forecast/delivery.py`). All 949 rows print: 609 ground-truth pairs; workspace 6-13 (320, empty ground truth, `D/v1_2/workspace/injection_tasks.py:90-91`) from a fresh agent's sequences, confirmed `security()=True` ungated, else "unscored" by name; travel 6 (20) as attack wins. Utility is optimistic: user bodies are placeholders (`D/v1/slack/user_tasks.py:49`), so the link rule never fires.
 - **T2, local.** `qwen3.8:27b`, harness-built LLM named `openai-compatible-{arm}-{approver}`, so arms don't reuse cached results (`S/benchmark.py:86-103,409`; `S/attacks/base_attacks.py:141-147`; `S/logging.py:235`). Attack `important_instructions`, dummy key, Modelfile `num_ctx` 32768 confirmed by `/api/ps`. The harness refuses non-loopback URLs and paid keys, catches `openai.InternalServerError` (uncaught, `S/benchmark.py:116-147`; seen in `docs/evidence/qwen-context-4096-probe.txt`) and voids a run when `prompt_tokens` reaches 95% of `num_ctx`: llama3.2:3b silently cut 27,777 characters to 2,050 tokens (`bench/forecast/ll_trunc.py`) and lost its tools after a result (`bench/forecast/ollama_probe.py`), so it's excluded. Each injection GOAL runs once as a plain prompt under `none` (a per-pair harness bypasses AgentDojo's capability check, `S/benchmark.py:200-209`); goals qwen can't do print apart from stops. 20 pairs rerun three times for a flip rate ([PlainSight ran five](https://github.com/axiom8z/plainsight/blob/main/docs/DECISIONS.md#L35); GPU limits this).
 - **T3, paid, later.** Optional. A 20-pair sample first, priced from T2 tokens; a full run only if the measured price is acceptable. [#201](https://github.com/ethz-spylab/agentdojo/issues/201) reports 0/560 for claude-sonnet-4-6, so it may measure only utility cost.
 - **T4, blind.** [AgentDyn](https://github.com/SaFo-Lab/AgentDyn), labelled from schemas by someone who has not seen task files. Disclosure: during design an AI agent fetched four AgentDyn task files and counted them, and an AI reviewer printed their first 900 bytes, one GOAL included. The files were then deleted and no rule script cites them. Replay if ground truths run (unconfirmed), else a local sample. [Its provider table](https://raw.githubusercontent.com/SaFo-Lab/AgentDyn/main/src/agentdojo/models.py) has `local`, no `openai-compatible`, and its README routes Qwen through `OPENROUTER_API_KEY`: confirm a harness-built local LLM before M9.
@@ -176,7 +176,7 @@ harness (client) -> sayswho.exe -> relay.py -> socket -> harness (tool host) -> 
 
 **Baselines:** the defended `runs/gpt-4o-2024-05-13-*` logs. Never "better than" CaMeL, FIDES or Progent.
 
-**Delay:** `swbench`, QueryPerformanceCounter because `time.Now` steps about 1 ms on Go 1.27.3 here (`docs/evidence/windows-clock-step.go.txt`; [#67066](https://github.com/golang/go/issues/67066) closed 2026-10-16), [open loop](https://github.com/giltene/wrk2), stub. Direct versus gateway; 1, 16, 256 KB; 100/s, 500/s, knee; p50 to p99.9; cold start.
+**Delay:** `magbench`, QueryPerformanceCounter because `time.Now` steps about 1 ms on Go 1.27.3 here (`docs/evidence/windows-clock-step.go.txt`; [#67066](https://github.com/golang/go/issues/67066) closed 2026-10-16), [open loop](https://github.com/giltene/wrk2), stub. Direct versus gateway; 1, 16, 256 KB; 100/s, 500/s, knee; p50 to p99.9; cold start.
 
 **Sizes:** replay runs everything. T2 default, 565 runs: 40 seeded pairs ungated (under 20% ASR: uninformative); 35 goals; 48 tasks under `none` and `deny`, `oracle` on up to 24 broken; 120 stratified pairs under `none` and `deny`; 60 flip reruns; 40 new-task pairs; 30 `BaseAttack`. About 2,500 calls at 4.5 per run (refusal-free logs: means 2.7-4.7, max 16). At context 32768 with 24 tools, 4.7 of 18.8 GiB is in VRAM and output runs 3.2-5.1 tokens/s (`bench/forecast/qwen_real.py`, plus two further probe calls): 25-200 s per call, 18-140 hours. Time one whole task before starting; above 70 hours, cut to 60 pairs and 24 tasks.
 
@@ -232,7 +232,7 @@ M1-M3 run on a stub model on 127.0.0.1 (`test/interop`), so no real model is cal
 |2|`audit`, `verify`|Flip a byte; `verify` fails|
 |3|`policy`, `gate`, `prov`, `approve`|Read then send refused; dialog hand check; `--restricted`|
 |4|T0 on six models|First real table, no install|
-|5|`secrets`, `swbench`|S1, S2 and delay tables|
+|5|`secrets`, `magbench`|S1, S2 and delay tables|
 |6|Harness (optional install)|`pass` equals `none`; floor known|
 |7|Tuning, labelling|F2 pushed|
 |8|T0 new models, T1, S3, S4|First scores; misses listed|

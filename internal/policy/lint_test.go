@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/axiom8z/sayswho/internal/upstream"
+	"github.com/axiom8z/magistrate/internal/upstream"
 )
 
 // oneTool wraps one tool entry in a policy that passes everything else.

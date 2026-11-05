@@ -14,7 +14,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/axiom8z/sayswho/internal/policy"
+	"github.com/axiom8z/magistrate/internal/policy"
 )
 
 func argsOf(t *testing.T, raw string) map[string]jsontext.Value {

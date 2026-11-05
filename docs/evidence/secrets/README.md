@@ -1,6 +1,6 @@
 # Secret scanner: S1 and S2
 
-**Both failure lines from DESIGN section 8 were crossed.** Known-format recall was 89.81%, under the 95% line. False hits were 1.1691 per 1,000 strings, over the line of 1. Each set was scored once, against the frozen rule table `2d687b53f1316ea3d84295868a8d7424169bd7eef077ee2d9d75cbd71a359004`, and nothing was changed to improve either number. `score.out` holds the tables exactly as printed, with every miss and false hit by case ID.
+**Both failure lines from DESIGN section 8 were crossed.** Known-format recall was 89.81%, under the 95% line. False hits were 1.1691 per 1,000 strings, over the line of 1. Each set was scored once, against the frozen rule table `2d687b53f1316ea3d84295868a8d7424169bd7eef077ee2d9d75cbd71a359004`, and nothing was changed to improve either number. `score.out` holds the tables exactly as printed, with every miss and false hit by case ID. The project was called SaysWho at the time, so the `.out` files carry that name.
 
 ## Who wrote the sets
 

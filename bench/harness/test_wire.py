@@ -1,6 +1,6 @@
 """Checks the benchmark's wiring against the real gateway binary, using a pretend tool, so it needs no AgentDojo.
 
-    python -I -X utf8 bench/harness/test_wire.py <sayswho binary> <empty work folder>
+    python -I -X utf8 bench/harness/test_wire.py <magistrate binary> <empty work folder>
 """
 import json
 import pathlib

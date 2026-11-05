@@ -14,7 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/axiom8z/sayswho/internal/upstream"
+	"github.com/axiom8z/magistrate/internal/upstream"
 )
 
 // maxNameLen is the longest tool name the MCP specification recommends.

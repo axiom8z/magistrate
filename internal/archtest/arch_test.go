@@ -51,7 +51,7 @@ func TestGoModHasNoRequire(t *testing.T) {
 			t.Errorf("go.mod requires a module, and this project is standard library only: %s", line)
 		}
 	}
-	if !bytes.Contains(data, []byte("module github.com/axiom8z/sayswho")) {
+	if !bytes.Contains(data, []byte("module github.com/axiom8z/magistrate")) {
 		t.Errorf("this does not look like the right go.mod: %s", data)
 	}
 }

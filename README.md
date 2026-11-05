@@ -1,14 +1,16 @@
-# SaysWho
+# Magistrate
 
 A security gateway for AI agents. It is one Go binary, using only the standard library, that sits between an agent and its tools over the Model Context Protocol and asks of every risky value: who said that?
 
-When an agent reads something untrusted, like an email or a web page, that text can try to tell it what to do next. SaysWho checks the risky arguments of each tool call. A recipient, a file ID or a URL has to trace to the user's prompt, an operator's list, a tool nobody else can write to, or a lookup the user asked for. If it doesn't, a person is asked, and with nobody there the call is refused. Known-format secrets are blocked and redacted, and every decision goes into a hash-chained log.
+When an agent reads something untrusted, like an email or a web page, that text can try to tell it what to do next. Magistrate checks the risky arguments of each tool call. A recipient, a file ID or a URL has to trace to the user's prompt, an operator's list, a tool nobody else can write to, or a lookup the user asked for. If it doesn't, a person is asked, and with nobody there the call is refused. Known-format secrets are blocked and redacted, and every decision goes into a hash-chained log.
 
 This is value matching, which is a heuristic and not a guarantee. [The design](docs/DESIGN.md#9-threat-model-and-limits) lists what it can't stop. Similar gateways already exist. No independent security audit has been done.
 
 ## Status
 
 **Under construction: milestones 1 to 5 of 12.** The gateway is built and tested. The evaluation is not finished, and every number below is a development number.
+
+The project was called SaysWho until 2026-11-04. Older commits and some raw outputs still use that name.
 
 ## Measured so far
 
@@ -55,7 +57,7 @@ So the cost is real: with nobody to approve anything, about 40% of normal tasks 
 You need Go 1.27 or later. `run` also needs the `claude` command.
 
 ```console
-go build -o sayswho ./cmd/sayswho
+go build -o magistrate ./cmd/magistrate
 ```
 
 Start with a policy that names your MCP servers. Environment variables are listed by name, so the file holds no secrets:
@@ -67,12 +69,12 @@ Start with a policy that names your MCP servers. Environment variables are liste
 Then draft labels for every tool, review them (the draft is only a start), and run:
 
 ```console
-sayswho init --policy servers.json > policy.json
-sayswho run --policy policy.json --state ./state --prompt-file prompt.txt
-sayswho verify ./state/audit.log
+magistrate init --policy servers.json > policy.json
+magistrate run --policy policy.json --state ./state --prompt-file prompt.txt
+magistrate verify ./state/audit.log
 ```
 
-`sayswho serve` runs the gateway alone over stdio, for use with another client.
+`magistrate serve` runs the gateway alone over stdio, for use with another client.
 
 ## License
 

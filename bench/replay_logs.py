@@ -13,7 +13,7 @@ chosen by looking at these same tasks.
 The labels are the ones the design's forecasts assumed, written as a policy. They are not the author
 labels of milestone 7, and that is why the output says "forecast labels".
 
-    python -I -X utf8 bench/replay_logs.py --clone <agentdojo checkout> --gateway <sayswho binary> \\
+    python -I -X utf8 bench/replay_logs.py --clone <agentdojo checkout> --gateway <magistrate binary> \\
         --work <empty folder> [--arm value] [--workers 2] [--dump cases.jsonl]
 """
 import argparse
@@ -221,7 +221,7 @@ class Gateway:
         self.process.stdout.close()
 
 
-BLOCK = re.compile(r"^Blocked by SaysWho, rule ([^:]+):")
+BLOCK = re.compile(r"^Blocked by Magistrate, rule ([^:]+):")
 
 
 def replay(case, policy, tools_file, gateway, work, with_prompt):
@@ -234,7 +234,7 @@ def replay(case, policy, tools_file, gateway, work, with_prompt):
     command = [str(gateway), "serve", "--policy", str(policy), "--state", str(folder / "state")]
     if with_prompt:
         command += ["--prompt-file", str(prompt_file)]
-    env = dict(os.environ, SAYSWHO_CASE=str(case_file), SAYSWHO_TOOLS=str(tools_file))
+    env = dict(os.environ, MAGISTRATE_CASE=str(case_file), MAGISTRATE_TOOLS=str(tools_file))
     client = Gateway(command, env)
     flagged, asks, mismatches = [], 0, 0
     try:
@@ -282,8 +282,8 @@ def load_cases(clone):
 
 
 def draft_policy(gateway, base_file, tools_file, work):
-    env = dict(os.environ, SAYSWHO_TOOLS=str(tools_file))
-    env.pop("SAYSWHO_CASE", None)
+    env = dict(os.environ, MAGISTRATE_TOOLS=str(tools_file))
+    env.pop("MAGISTRATE_CASE", None)
     done = subprocess.run([str(gateway), "init", "--policy", str(base_file)], capture_output=True, env=env, timeout=120)
     if done.returncode != 0:
         raise RuntimeError("init failed: " + done.stderr.decode(errors="replace"))
@@ -382,7 +382,7 @@ def main():
         tool_files[suite] = work / f"tools-{suite}.json"
         tool_files[suite].write_text(json.dumps(tool_listing(parameters)), encoding="utf-8")
         base = work / f"base-{suite}.json"
-        base.write_text(json.dumps({"mode": "value", "servers": {"s": {"command": relay[0], "args": relay[1:], "env": ["SAYSWHO_TOOLS", "SAYSWHO_CASE"]}}}), encoding="utf-8")
+        base.write_text(json.dumps({"mode": "value", "servers": {"s": {"command": relay[0], "args": relay[1:], "env": ["MAGISTRATE_TOOLS", "MAGISTRATE_CASE"]}}}), encoding="utf-8")
         draft = draft_policy(options.gateway, base, tool_files[suite], work)
         policies[suite] = work / f"policy-{suite}.json"
         policies[suite].write_text(json.dumps(policy_for(options.arm, parameters, draft)), encoding="utf-8")

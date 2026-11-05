@@ -12,19 +12,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/axiom8z/sayswho/internal/audit"
-	"github.com/axiom8z/sayswho/internal/policy"
-	"github.com/axiom8z/sayswho/internal/rpc"
-	"github.com/axiom8z/sayswho/test/fakemcp"
+	"github.com/axiom8z/magistrate/internal/audit"
+	"github.com/axiom8z/magistrate/internal/policy"
+	"github.com/axiom8z/magistrate/internal/rpc"
+	"github.com/axiom8z/magistrate/test/fakemcp"
 )
 
 // serverVar makes the test binary play an MCP server. It reaches the child only because the policy
 // these tests write names it, which also exercises the environment allowlist end to end.
-const serverVar = "SAYSWHO_CMD_TEST_SERVER"
+const serverVar = "MAGISTRATE_CMD_TEST_SERVER"
 
 // clientVar makes the test binary play the client for the run command. It prints its arguments as JSON
 // and exits with the code the variable holds.
-const clientVar = "SAYSWHO_CMD_TEST_CLIENT"
+const clientVar = "MAGISTRATE_CMD_TEST_CLIENT"
 
 func TestMain(m *testing.M) {
 	if code := os.Getenv(clientVar); code != "" {
@@ -170,7 +170,7 @@ func TestServeEndToEnd(t *testing.T) {
 
 func TestServeReportsABrokenServerAndKeepsGoing(t *testing.T) {
 	dir := t.TempDir()
-	data := `{"mode":"pass","servers":{"gone":{"command":"sayswho-no-such-command"}}}`
+	data := `{"mode":"pass","servers":{"gone":{"command":"magistrate-no-such-command"}}}`
 	policyPath := filepath.Join(dir, "policy.json")
 	if err := os.WriteFile(policyPath, []byte(data), 0o600); err != nil {
 		t.Fatal(err)
@@ -395,7 +395,7 @@ func TestRunStartsTheClientWithOnlyTheGateway(t *testing.T) {
 	if err := json.Unmarshal(raw, &parsed); err != nil {
 		t.Fatal(err)
 	}
-	entry := parsed.MCPServers["sayswho"]
+	entry := parsed.MCPServers["magistrate"]
 	if len(parsed.MCPServers) != 1 || entry.Command == "" || entry.Args[0] != "serve" {
 		t.Fatalf("config = %s", raw)
 	}
@@ -474,7 +474,7 @@ func TestInitDraftsAPolicyTheGatewayCanServe(t *testing.T) {
 		t.Errorf("the gateway did not list what init pinned:\n%s", stdout)
 	}
 	// No prompt file and a clear latch, so this first call goes through, in the mode the draft chose.
-	if strings.Contains(stdout, "Blocked by SaysWho") {
+	if strings.Contains(stdout, "Blocked by Magistrate") {
 		t.Errorf("the call was blocked:\n%s", stdout)
 	}
 }

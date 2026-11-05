@@ -14,7 +14,7 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/axiom8z/sayswho/internal/policy"
+	"github.com/axiom8z/magistrate/internal/policy"
 )
 
 // Sources, as the audit log names them. Each is a kind of thing and never a value.

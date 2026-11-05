@@ -12,10 +12,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/axiom8z/sayswho/internal/audit"
-	"github.com/axiom8z/sayswho/internal/rpc"
-	"github.com/axiom8z/sayswho/internal/upstream"
-	"github.com/axiom8z/sayswho/test/fakemcp"
+	"github.com/axiom8z/magistrate/internal/audit"
+	"github.com/axiom8z/magistrate/internal/rpc"
+	"github.com/axiom8z/magistrate/internal/upstream"
+	"github.com/axiom8z/magistrate/test/fakemcp"
 )
 
 func TestToolsListNamesOrderAndStripping(t *testing.T) {

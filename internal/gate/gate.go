@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/axiom8z/sayswho/internal/policy"
+	"github.com/axiom8z/magistrate/internal/policy"
 )
 
 // Action is what happens to a call.

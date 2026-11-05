@@ -5,7 +5,7 @@ import (
 	"encoding/json/v2"
 	"strings"
 
-	"github.com/axiom8z/sayswho/internal/upstream"
+	"github.com/axiom8z/magistrate/internal/upstream"
 )
 
 // draftCeiling is the quantity ceiling the design's forecasts assume. A reviewer sets the real one.

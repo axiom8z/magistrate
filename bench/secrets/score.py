@@ -355,7 +355,7 @@ def main():
         if rules_hash != args.expect_rules:
             sys.exit(f"{name} was scanned with other rules, so it says nothing about the frozen table")
 
-    print("SaysWho secret scanner, scored once")
+    print("Magistrate secret scanner, scored once")
     print(f"date                {args.date}")
     print(f"rule-table hash     {args.expect_rules}")
     print(f"generator hash      {manifest['generator_sha256']}")

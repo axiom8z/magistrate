@@ -1,6 +1,6 @@
 """Checks how labels merge and turn into a policy, and that the real gateway accepts the policy they make.
 
-    python -I -X utf8 bench/label/test_labels.py <sayswho binary> <empty work folder>
+    python -I -X utf8 bench/label/test_labels.py <magistrate binary> <empty work folder>
 """
 import json
 import pathlib

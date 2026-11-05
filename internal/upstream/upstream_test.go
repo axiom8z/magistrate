@@ -15,8 +15,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/axiom8z/sayswho/internal/rpc"
-	"github.com/axiom8z/sayswho/test/fakemcp"
+	"github.com/axiom8z/magistrate/internal/rpc"
+	"github.com/axiom8z/magistrate/test/fakemcp"
 )
 
 var noArgs = jsontext.Value("{}")
@@ -38,7 +38,7 @@ func TestHandshakeSendsTheExpectedMessages(t *testing.T) {
 		t.Fatal(why)
 	}
 	want := []string{
-		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{},"clientInfo":{"name":"sayswho","version":"` + Version + `"},"protocolVersion":"2025-11-25"}}`,
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{},"clientInfo":{"name":"magistrate","version":"` + Version + `"},"protocolVersion":"2025-11-25"}}`,
 		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
 	}
@@ -659,7 +659,7 @@ func TestStderrTailKeepsTheLastBytes(t *testing.T) {
 
 // The rest of the tests use real child processes: the test binary plays the server when this
 // variable is set. It reaches the child only because each test's policy names it.
-const helperVar = "SAYSWHO_UPSTREAM_TEST_SERVER"
+const helperVar = "MAGISTRATE_UPSTREAM_TEST_SERVER"
 
 // grandchildLife is long enough that a Close waiting for the grandchild would be seen.
 const grandchildLife = 2 * time.Second
@@ -753,7 +753,7 @@ func TestStartAllKeepsOrder(t *testing.T) {
 	cfg := helperConfig(t, "echo")
 	a, b := cfg, cfg
 	a.Name, b.Name = "a", "b"
-	bad := Config{Name: "c", Command: "sayswho-no-such-command"}
+	bad := Config{Name: "c", Command: "magistrate-no-such-command"}
 	servers := StartAll(t.Context(), []Config{a, b, bad})
 	defer func() {
 		for _, s := range servers {
@@ -784,12 +784,12 @@ func TestEnvironmentWithNothingSetIsEmptyAndNotNil(t *testing.T) {
 }
 
 func TestEnvironmentIsAnAllowlist(t *testing.T) {
-	t.Setenv("SAYSWHO_TEST_SECRET", "top-secret")
-	t.Setenv("SAYSWHO_TEST_API_KEY", "not-a-real-key")
-	t.Setenv("SAYSWHO_TEST_LISTED", "listed-value")
-	t.Setenv("SAYSWHO_TEST_UNSET_ELSEWHERE", "x")
-	os.Unsetenv("SAYSWHO_TEST_UNSET_ELSEWHERE")
-	s := Start(t.Context(), helperConfig(t, "env", "SAYSWHO_TEST_LISTED", "SAYSWHO_TEST_UNSET_ELSEWHERE"))
+	t.Setenv("MAGISTRATE_TEST_SECRET", "top-secret")
+	t.Setenv("MAGISTRATE_TEST_API_KEY", "not-a-real-key")
+	t.Setenv("MAGISTRATE_TEST_LISTED", "listed-value")
+	t.Setenv("MAGISTRATE_TEST_UNSET_ELSEWHERE", "x")
+	os.Unsetenv("MAGISTRATE_TEST_UNSET_ELSEWHERE")
+	s := Start(t.Context(), helperConfig(t, "env", "MAGISTRATE_TEST_LISTED", "MAGISTRATE_TEST_UNSET_ELSEWHERE"))
 	defer s.Close()
 	if why := s.Failure(); why != "" {
 		t.Fatal(why)
@@ -799,12 +799,12 @@ func TestEnvironmentIsAnAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(got)
-	for _, leaked := range []string{"top-secret", "not-a-real-key", "SAYSWHO_TEST_API_KEY", "SAYSWHO_TEST_SECRET", "SAYSWHO_TEST_UNSET_ELSEWHERE"} {
+	for _, leaked := range []string{"top-secret", "not-a-real-key", "MAGISTRATE_TEST_API_KEY", "MAGISTRATE_TEST_SECRET", "MAGISTRATE_TEST_UNSET_ELSEWHERE"} {
 		if strings.Contains(text, leaked) {
 			t.Errorf("the child can see %s", leaked)
 		}
 	}
-	if !strings.Contains(text, "SAYSWHO_TEST_LISTED=listed-value") {
+	if !strings.Contains(text, "MAGISTRATE_TEST_LISTED=listed-value") {
 		t.Errorf("the child cannot see a variable the policy lists: %s", text)
 	}
 }
@@ -866,7 +866,7 @@ func TestHandshakeFailureShowsEscapedStderr(t *testing.T) {
 }
 
 func TestAMissingCommandFailsClosed(t *testing.T) {
-	s := Start(t.Context(), Config{Name: "gone", Command: "sayswho-no-such-command"})
+	s := Start(t.Context(), Config{Name: "gone", Command: "magistrate-no-such-command"})
 	defer s.Close()
 	if !strings.Contains(s.Failure(), "could not start") {
 		t.Fatalf("Failure() = %q", s.Failure())

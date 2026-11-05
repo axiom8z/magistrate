@@ -1018,8 +1018,8 @@ func TestWorstCase1MiBStaysBounded(t *testing.T) {
 
 // Rule 4 of the project: no complete token-shaped string in a file, fake or not. Scanning our own
 // source with our own rules is the check for it.
-func TestNoSecretShapedStringInThisPackageOrSwbench(t *testing.T) {
-	for _, dir := range []string{".", "../../cmd/swbench"} {
+func TestNoSecretShapedStringInThisPackageOrMagbench(t *testing.T) {
+	for _, dir := range []string{".", "../../cmd/magbench"} {
 		paths, err := filepath.Glob(filepath.Join(dir, "*"))
 		if err != nil {
 			t.Fatal(err)

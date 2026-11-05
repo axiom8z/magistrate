@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/axiom8z/sayswho/internal/policy"
+	"github.com/axiom8z/magistrate/internal/policy"
 )
 
 const rule = "some-rule"
