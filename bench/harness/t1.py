@@ -57,11 +57,12 @@ def plain(value):
 
 
 def structured(value):
-    """The tool's return value as structuredContent. The spec requires an object, so lists and scalars get wrapped."""
+    """The tool's return value as structuredContent. The spec requires an object, so lists and scalars get wrapped. A single
+    record is a list of one, as in the log replay, so that the same lookup binds the same IDs in both tests."""
     from pydantic import BaseModel
 
     if isinstance(value, BaseModel):
-        return plain(value.model_dump(mode="json"))
+        return {"result": [plain(value.model_dump(mode="json"))]}
     if isinstance(value, list):
         return {"result": [plain(item.model_dump(mode="json")) if isinstance(item, BaseModel) else plain(item) for item in value]}
     if isinstance(value, dict):
