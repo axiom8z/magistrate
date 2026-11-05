@@ -36,7 +36,7 @@ Forecast (development numbers), printed beside each measured number:
 
 By log cohort: 629-log models 127/210 and 458/478; 949-log models 106/184 and 374/400.
 
-Measured so far through the real binary, on these same logs, so still development numbers: `value` kept 234/394 and interrupted 832/878, and 1,271 of the 1,272 logs agree with the forecast (`docs/evidence/t0/`). Added p99 at 1 KB and 500/s was 1.235-1.297 ms for an act and 0.243-0.282 ms for a read on one desktop (`docs/evidence/delay/`).
+Measured so far through the real binary, on these same logs, so still development numbers: `value` kept 234/394 and interrupted 832/878, and 1,271 of the 1,272 logs agree with the forecast (`docs/evidence/t0/`). Added p99 at 1 KB and 500/s was 1.235-1.297 ms for an act and 0.243-0.282 ms for a read on one desktop (`docs/evidence/delay/`). The secret rules' first score crossed both failure lines: known-format recall 89.81% on S1, and 1.1691 false hits per 1,000 strings on S2 (`docs/evidence/secrets/`).
 
 ## 2. Architecture and data flow
 
