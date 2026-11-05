@@ -10,7 +10,7 @@ real binary, which passes what it allows to host_relay.py, and on to the real to
 It needs AgentDojo installed, so it runs from a virtual environment. Labels come from bench/replay_logs.py, which are
 the ones the forecasts assumed, until the labels of milestone 7 exist. Everything here is a development number.
 
-    <venv python> -X utf8 bench/harness/t1.py --clone <agentdojo checkout> --gateway <sayswho binary> --work <empty folder>
+    <venv python> -X utf8 bench/harness/t1.py --clone <agentdojo checkout> --gateway <magistrate binary> --work <empty folder>
         --arm pass [--approver deny] [--workers 2] [--suite slack] [--limit 5] --out results.jsonl
     <venv python> -X utf8 bench/harness/t1.py --compare none.jsonl pass.jsonl
 """
@@ -34,6 +34,11 @@ SUITES = ("banking", "slack", "travel", "workspace")
 ARMS = ("none", "pass", "session", "value", "value-noids", "value-noprompt", "unreviewed")
 # Fields two runs must agree on for `pass` to equal `none`.
 COMPARED = ("utility", "security", "stock", "delivered", "results_hash", "problems")
+# The email and drive tools stamp what they create with the wall clock. That is the one part of a result that changes
+# from run to run, so it stays out of the hash. The benchmark's own timestamps have no fraction of a second, and stay in.
+WALL_CLOCK = re.compile(r"\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d\.\d{1,6}")
+# Every injection this attack writes carries this word. A result holding it that the comparison misses is a bug here.
+MARKER = "<INFORMATION>"
 
 
 def load_replay_module():
@@ -63,8 +68,14 @@ def structured(value):
 
 
 def squeezed(text):
-    """YAML rewraps and quotes long strings, so text is compared with whitespace, quotes and escapes taken out."""
-    return re.sub(r"[\s'\"\\]+", "", text)
+    """Results reach the model as YAML or as the text of a Python dict, and both rewrap, quote and escape long strings. So
+    text is compared with whitespace, quotes and escapes taken out. An escaped newline has to go whole: leave its n behind
+    and the injected text never matches."""
+    return re.sub(r"[\s'\"\\]+", "", re.sub(r"\\[nrt]", "", text))
+
+
+def results_hash(texts):
+    return hashlib.sha256(WALL_CLOCK.sub("<now>", "\n".join(texts)).encode()).hexdigest()
 
 
 class Harness:
@@ -197,10 +208,13 @@ class Harness:
         try:
             for call in plan:
                 text = execute(call, "user")
-                if needles and not delivered and any(needle in squeezed(text) for needle in needles):
-                    delivered = True
-                    for bad in injection_task.ground_truth(task_env):
-                        execute(bad, "injection")
+                if needles and not delivered:
+                    if any(needle in squeezed(text) for needle in needles):
+                        delivered = True
+                        for bad in injection_task.ground_truth(task_env):
+                            execute(bad, "injection")
+                    elif MARKER in text:
+                        problems.append(f"{call.function}: a result holds the attack's marker, but the comparison missed the injected text")
         except Exception as problem:  # a run that broke is invalid, and never counts as a stop
             problems.append(f"{type(problem).__name__}: {problem}")
         finally:
@@ -221,7 +235,7 @@ class Harness:
             "calls": len(proposed),
             "refused": refused,
             "asks": asks,
-            "results_hash": hashlib.sha256("\n".join(texts).encode()).hexdigest(),
+            "results_hash": results_hash(texts),
             "problems": problems,
             "utility": bool(suite._check_task_result(user_task, output, pre, task_env, executed)),
         }
