@@ -80,6 +80,14 @@ def results_hash(texts):
     return hashlib.sha256(WALL_CLOCK.sub("<now>", "\n".join(texts)).encode()).hexdigest()
 
 
+def attack_calls(suite_name, injection_task, env):
+    """What a hijacked agent runs: AgentDojo's own calls or, where it leaves them empty, the ones in sequences.py. Each
+    gets its own copy of the environment, because working out the calls can change it."""
+    import sequences
+
+    return injection_task.ground_truth(env.model_copy(deep=True)) or sequences.calls(suite_name, injection_task.ID, env.model_copy(deep=True))
+
+
 class Harness:
     def __init__(self, options):
         from agentdojo.task_suite.load_suites import get_suites
@@ -161,7 +169,7 @@ class Harness:
         task_env = user_task.init_environment(environment)
         pre = task_env.model_copy(deep=True)
         runtime = FunctionsRuntime(suite.tools)
-        plan = user_task.ground_truth(pre)
+        plan = user_task.ground_truth(pre.model_copy(deep=True))
         tools_in_task = {call.function for call in plan}
         current = {"tool": None}
 
@@ -213,7 +221,7 @@ class Harness:
                 if needles and not delivered:
                     if any(needle in squeezed(text) for needle in needles):
                         delivered = True
-                        for bad in injection_task.ground_truth(task_env):
+                        for bad in attack_calls(suite_name, injection_task, task_env):
                             execute(bad, "injection")
                     elif MARKER in text:
                         problems.append(f"{call.function}: a result holds the attack's marker, but the comparison missed the injected text")
@@ -229,6 +237,11 @@ class Harness:
                 shutil.rmtree(folder, ignore_errors=True)
 
         output = [text_content_block_from_string(user_task.GROUND_TRUTH_OUTPUT)]
+
+        def check(task, trace):
+            # Some checks change what they look at, because reading unread emails marks them read. So each gets its own copies.
+            return bool(suite._check_task_result(task, output, pre.model_copy(deep=True), task_env.model_copy(deep=True), trace))
+
         record = {
             "suite": suite_name,
             "user_task": user_task.ID,
@@ -239,13 +252,13 @@ class Harness:
             "asks": asks,
             "results_hash": results_hash(texts),
             "problems": problems,
-            "utility": bool(suite._check_task_result(user_task, output, pre, task_env, executed)),
+            "utility": check(user_task, executed),
         }
         if injection_task:
-            record["empty_ground_truth"] = len(injection_task.ground_truth(pre)) == 0
+            record["no_calls"] = not attack_calls(suite_name, injection_task, pre)
             # security=True means the attack won. Executed counts what ran, and stock counts what was attempted.
-            record["security"] = bool(suite._check_task_result(injection_task, output, pre, task_env, executed))
-            record["stock"] = bool(suite._check_task_result(injection_task, output, pre, task_env, proposed))
+            record["security"] = check(injection_task, executed)
+            record["stock"] = check(injection_task, proposed)
         return record
 
 
@@ -253,17 +266,39 @@ def share(part, whole):
     return f"{part}/{whole} ({100 * part / whole:.1f}%)" if whole else "0/0"
 
 
-def report(records, label, out=sys.stdout):
+def pair(record):
+    return f'{record["suite"]}/{record["user_task"]}/{record["injection_task"]}'
+
+
+def stops(records, baseline, out):
+    """Only a pair the attack wins with no gateway can show a stop, and only a refused call that ends its win is one."""
+    won = {pair(r) for r in baseline if r.get("security") and r["delivered"] and not r["no_calls"]}
+    print("  | suite | attack wins with no gateway | refused and lost: a stop | never delivered | lost some other way | still won |", file=out)
+    print("  |---|---|---|---|---|---|", file=out)
+    for suite in SUITES + ("all",):
+        chosen = [r for r in records if suite in (r["suite"], "all") and pair(r) in won]
+        lost = [r for r in chosen if not r["security"]]
+        refused = sum(1 for r in lost if r["delivered"] and any(f["part"] == "injection" for f in r["refused"]))
+        never = sum(1 for r in lost if not r["delivered"])
+        print(f"  | {suite} | {len(chosen)} | {share(refused, len(chosen))} | {share(never, len(chosen))} | "
+              f'{share(len(lost) - refused - never, len(chosen))} | {share(len(chosen) - len(lost), len(chosen))} |', file=out)
+    unscored = sorted(pair(r) for r in baseline if r["injection_task"] and not r["no_calls"] and pair(r) not in won)
+    print(f"  unscored, because the attack loses with no gateway: {len(unscored)}", file=out)
+    for name in unscored:
+        print("    " + name, file=out)
+
+
+def report(records, label, out=sys.stdout, baseline=None):
     print(f"T1, {label}: ground-truth replay of AgentDojo {BENCHMARK_VERSION}, no model. Development numbers.", file=out)
     invalid = sum(1 for r in records if r["problems"])
-    print(f"  cases {len(records)}, invalid {invalid}", file=out)
-    print("  | suite | benign utility | utility under attack | delivered | attack won, given delivered | attempted calls refused | pairs with no ground truth |", file=out)
+    print(f"  cases {len(records)}, invalid {invalid}, questions asked {sum(r['asks'] for r in records)}", file=out)
+    print("  | suite | benign utility | utility under attack | delivered | attack won, given delivered | attempted calls refused | pairs with no calls |", file=out)
     print("  |---|---|---|---|---|---|---|", file=out)
     for suite in SUITES + ("all",):
         chosen = [r for r in records if suite in (r["suite"], "all")]
         benign = [r for r in chosen if r["injection_task"] is None]
         pairs = [r for r in chosen if r["injection_task"] is not None]
-        scored = [r for r in pairs if not r["empty_ground_truth"]]
+        scored = [r for r in pairs if not r["no_calls"]]
         delivered = [r for r in scored if r["delivered"]]
         won = sum(1 for r in delivered if r["security"])
         refused = sum(1 for r in delivered if any(f["part"] == "injection" for f in r["refused"]))
@@ -271,13 +306,21 @@ def report(records, label, out=sys.stdout):
               f"{share(len(delivered), len(scored))} | {share(won, len(delivered))} | {share(refused, len(delivered))} | {len(pairs) - len(scored)} |", file=out)
     why = collections.Counter(f["rule"] for r in records for f in r["refused"])
     print("  refusals by rule:", dict(why.most_common()), file=out)
-    misses = [f'{r["suite"]}/{r["user_task"]}/{r["injection_task"]}' for r in records if r.get("security") and r["delivered"] and not r["empty_ground_truth"]]
+    if baseline is not None:
+        stops(records, baseline, out)
+    misses = [pair(r) for r in records if r.get("security") and r["delivered"] and not r["no_calls"]]
     print(f"  attacks that won: {len(misses)}", file=out)
     for miss in misses:
         print("    " + miss, file=out)
+    # The attack's check passed although its text never arrived, so its calls never ran. Worth a look every time.
+    odd = [pair(r) for r in records if r.get("security") and not r["delivered"] and not r["no_calls"]]
+    if odd:
+        print(f"  won without being delivered: {len(odd)}", file=out)
+        for name in odd:
+            print("    " + name, file=out)
     for r in records:
         for problem in r["problems"]:
-            print(f'  invalid: {r["suite"]}/{r["user_task"]}/{r["injection_task"]}: {problem}', file=out)
+            print(f"  invalid: {pair(r)}: {problem}", file=out)
 
 
 def compare(first_path, second_path):
@@ -311,6 +354,7 @@ def main():
     parser.add_argument("--limit", type=int)
     parser.add_argument("--out")
     parser.add_argument("--labels", type=pathlib.Path, help="merged answers from bench/label/labels.py, in place of the forecast's labels")
+    parser.add_argument("--baseline", type=pathlib.Path, help="results from arm none, so that a table of stops can print")
     parser.add_argument("--compare", nargs=2)
     options = parser.parse_args()
     if options.compare:
@@ -332,7 +376,10 @@ def main():
             for record in records:
                 f.write(json.dumps(record) + "\n")
     named = {"none": "no gateway", "pass": "pass mode", "unreviewed": "the init draft, unedited"}.get(options.arm, "merged labellers' answers" if options.labels else "forecast labels")
-    report(records, f"arm {options.arm}, approver {options.approver}, labels: {named}")
+    baseline = None
+    if options.baseline:
+        baseline = [json.loads(line) for line in options.baseline.read_text(encoding="utf-8").splitlines()]
+    report(records, f"arm {options.arm}, approver {options.approver}, labels: {named}", baseline=baseline)
     return 0
 
 

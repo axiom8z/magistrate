@@ -50,7 +50,7 @@ So the cost is real: with nobody to approve anything, about 40% of normal tasks 
 
 ### Every attack pair, with no rules on
 
-This replays the benchmark's own correct calls for all 97 tasks and 949 attack pairs, with a perfectly obedient agent and no model. Going through the real binary in `pass` mode gave the same result as going around it, on all 1,046 cases. With no defence, the attack wins 596 of the 609 pairs that can be scored so far. That's the floor the rules get measured against, and they haven't been measured against it yet. [Details and caveats](docs/evidence/t1/README.md).
+This replays the benchmark's own correct calls for all 97 tasks and 949 attack pairs, with a perfectly obedient agent and no model. Going through the real binary in `pass` mode gave the same result as going around it, on all 1,046 cases. With no defense, the attack wins 596 of the 609 pairs that can be scored so far. That's the floor the rules get measured against, and they haven't been measured against it yet. [Details and caveats](docs/evidence/t1/README.md).
 
 **Delay:** the gateway added 1.235-1.297 ms at p99 for an action and 0.243-0.282 ms for a read, at 1 KB and 500 requests a second, on one desktop. [Details](docs/evidence/delay/README.md).
 
