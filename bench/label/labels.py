@@ -8,7 +8,7 @@ An answer file looks like this. docs/labels/RUBRIC.md is what a labeller reads.
         "args": {"to": "control", "body": "content", "amount": "quantity", "when": "date", "mode": "enum:r,rw"}}}}
 
     python -I -X utf8 bench/label/labels.py check <answers.json> --schemas docs/labels/schemas.json
-    python -I -X utf8 bench/label/labels.py merge <answers.json> <answers.json> --out merged.json
+    python -I -X utf8 bench/label/labels.py merge <answers.json> <answers.json> --schemas docs/labels/schemas.json --out merged.json
 """
 import argparse
 import json
@@ -62,11 +62,17 @@ def not_clearly(value, safe):
     return value != safe
 
 
+def written_stores(tools):
+    """The data this labeller says some acting tool writes. A tool nobody clearly called a read counts as acting."""
+    return {tool["store"] for tool in tools.values() if tool.get("store") and tool.get("changes_or_reaches", "unsure") != "no"}
+
+
 def merge(first, second):
     """Returns the merged answers and every disagreement, by tool and question."""
     if set(first["tools"]) != set(second["tools"]):
         raise ValueError(f'the labellers answered different tools: {sorted(set(first["tools"]) ^ set(second["tools"]))}')
     merged, disagreements = {}, []
+    written = written_stores(first["tools"]), written_stores(second["tools"])
     for name in sorted(first["tools"]):
         a, b = first["tools"][name], second["tools"][name]
         tool = {}
@@ -75,13 +81,10 @@ def merge(first, second):
             if not_clearly(answer_a, safe) != not_clearly(answer_b, safe):
                 disagreements.append(f"{name}: {question}: {answer_a} against {answer_b}")
             tool[question] = safe if not (not_clearly(answer_a, safe) or not_clearly(answer_b, safe)) else ("yes" if safe == "no" else "no")
-        if a.get("store") != b.get("store"):
-            disagreements.append(f'{name}: store: {a.get("store")} against {b.get("store")}')
-            # Nobody can say which writes reach it, so its output can't be vouched for.
+        # A store name only means something inside one labeller's file, so two spellings aren't a disagreement. What counts is
+        # whether, by either labeller's own names, an act writes what this tool returns. If so, its output can't be trusted.
+        if a.get("store") in written[0] or b.get("store") in written[1]:
             tool["outsiders_write_output"] = "yes"
-            tool["store"] = a.get("store") or b.get("store")
-        elif a.get("store"):
-            tool["store"] = a["store"]
         args_a, args_b = a.get("args", {}), b.get("args", {})
         tool["args"] = {}
         for arg in sorted(set(args_a) | set(args_b)):
@@ -185,6 +188,19 @@ def problems(answers, schemas):
     return found
 
 
+def fill_missing(merged, schemas):
+    """An acting tool's argument that neither labeller gave a role would be refused on every call, so it gets `control`, which
+    the rubric says to use when unsure. Returns what it filled in, so that the count can be published."""
+    filled = []
+    for name, tool in merged.items():
+        if tool.get("changes_or_reaches", "unsure") != "no":
+            for arg in schemas.get(name, {}).get("args", {}):
+                if arg not in tool["args"]:
+                    tool["args"][arg] = "control"
+                    filled.append(f"{name}.{arg}")
+    return filled
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("merge", "check"))
@@ -200,14 +216,17 @@ def main():
         for line in found:
             print("  " + line)
         return 1 if found else 0
-    if len(options.answers) != 2 or not options.out:
-        parser.error("merge takes two answer files and --out")
+    if len(options.answers) != 2 or not options.out or not options.schemas:
+        parser.error("merge takes two answer files, --out and --schemas")
     first, second = (json.loads(path.read_text(encoding="utf-8")) for path in options.answers)
     merged, disagreements = merge(first, second)
-    options.out.write_text(json.dumps({"labellers": [first["labeller"], second["labeller"]], "tools": merged, "disagreements": disagreements}, indent=1) + "\n", encoding="utf-8", newline="\n")
-    print(f'{first["labeller"]} and {second["labeller"]}: {len(merged)} tools, {len(disagreements)} disagreements')
+    filled = fill_missing(merged, json.loads(options.schemas.read_text(encoding="utf-8")))
+    options.out.write_text(json.dumps({"labellers": [first["labeller"], second["labeller"]], "tools": merged, "disagreements": disagreements, "filled_as_control": filled}, indent=1) + "\n", encoding="utf-8", newline="\n")
+    print(f'{first["labeller"]} and {second["labeller"]}: {len(merged)} tools, {len(disagreements)} disagreements, {len(filled)} arguments neither answered, filled as control')
     for line in disagreements:
         print("  " + line)
+    for line in filled:
+        print("  no answer: " + line)
     return 0
 
 

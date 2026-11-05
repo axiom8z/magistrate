@@ -69,8 +69,31 @@ def test_merge():
     tool, disagreements = merged(dict(base, args={"to": "content"}), dict(base, args={}))
     check(tool["args"]["to"] == "control" and len(disagreements) == 1, "an argument one labeller skipped counts as control")
 
-    tool, disagreements = merged(dict(base, store="notes"), dict(base, store="mail"))
-    check(tool["outsiders_write_output"] == "yes" and len(disagreements) == 1, "disagreeing about a store means the output can't be vouched for")
+    read = {"outsiders_write_output": "no", "changes_or_reaches": "no", "undoable": "yes", "sensitive": "no"}
+    act = {"outsiders_write_output": "yes", "changes_or_reaches": "yes", "undoable": "yes", "sensitive": "no", "args": {}}
+
+    def stores(a_reader, a_writer, b_reader, b_writer):
+        tools, disagreements = labels.merge(
+            {"labeller": "a", "tools": {"reader": dict(read, store=a_reader), "writer": dict(act, store=a_writer)}},
+            {"labeller": "b", "tools": {"reader": dict(read, store=b_reader), "writer": dict(act, store=b_writer)}})
+        return tools["reader"], disagreements
+
+    tool, disagreements = stores("bank", "other", "bank_account", "elsewhere")
+    check(tool["outsiders_write_output"] == "no" and not disagreements, "two spellings of a store aren't a disagreement, and don't cost a tool its trust")
+    tool, _ = stores("notes", "notes", "notes", "notes")
+    check(tool["outsiders_write_output"] == "yes", "output an act writes can't be trusted, when both labellers say so")
+    tool, _ = stores("notes", "notes", "notes_db", "other")
+    check(tool["outsiders_write_output"] == "yes", "one labeller's names are enough: the stricter answer wins")
+    tool, _ = stores("notes_db", "other", "notes", "notes")
+    check(tool["outsiders_write_output"] == "yes", "either way round")
+    check("store" not in tool, "merged answers carry no store, because the names were only ever one labeller's")
+    tools, _ = labels.merge({"labeller": "a", "tools": {"writer": dict(act, store="notes", changes_or_reaches="unsure")}}, {"labeller": "b", "tools": {"writer": dict(act)}})
+    check(tools["writer"]["outsiders_write_output"] == "yes", "a tool nobody clearly called a read counts as writing its store")
+
+    full = {"send": {"changes_or_reaches": "yes", "args": {"to": "control"}}, "find": {"changes_or_reaches": "no", "args": {}}}
+    filled = labels.fill_missing(full, {"send": {"args": {"to": {}, "cc": {}}}, "find": {"args": {"term": {}}}})
+    check(filled == ["send.cc"] and full["send"]["args"]["cc"] == "control", "an acting tool's argument neither labeller answered becomes control, and is reported")
+    check("term" not in full["find"]["args"], "a read's arguments aren't filled in")
 
     try:
         labels.merge({"labeller": "a", "tools": {"x": {}}}, {"labeller": "b", "tools": {"y": {}}})

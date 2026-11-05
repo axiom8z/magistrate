@@ -60,7 +60,7 @@ jobs:
           python-version: "3.14"
       - run: go build -o bin/ ./cmd/magistrate ./test/secretscore
       - run: python -I -X utf8 bench/harness/test_t1_report.py
-      - run: python -I -X utf8 bench/test_replay.py
+      - run: python -I -X utf8 bench/test_replay.py bin/magistrate
       - run: python -I -X utf8 bench/test_ledger.py
       - run: python -I -X utf8 bench/secrets/test_s3.py bin/secretscore
       - run: python -I -X utf8 bench/secrets/test_s4.py bin/secretscore

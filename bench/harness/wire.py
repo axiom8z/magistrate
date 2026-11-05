@@ -12,6 +12,7 @@ import threading
 
 HERE = pathlib.Path(__file__).resolve().parent
 PROTOCOL = "2025-11-25"
+# The refusal the gateway writes, spelled out in internal/front/tools.go.
 BLOCK = re.compile(r"^Blocked by Magistrate, rule ([^:]+):")
 # A wedged run must not hang the whole benchmark. The harness counts it as invalid.
 CASE_TIMEOUT = 120
@@ -98,8 +99,12 @@ class GatewaySession:
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
         self.timer = threading.Timer(CASE_TIMEOUT, self.process.kill)
         self.timer.start()
-        self.request("initialize", {"protocolVersion": PROTOCOL, "capabilities": {"elicitation": {"form": {}}}, "clientInfo": {"name": "harness", "version": "0"}})
-        self.send({"method": "notifications/initialized"})
+        try:
+            self.request("initialize", {"protocolVersion": PROTOCOL, "capabilities": {"elicitation": {"form": {}}}, "clientInfo": {"name": "harness", "version": "0"}})
+            self.send({"method": "notifications/initialized"})
+        except Exception:
+            self.close()
+            raise
 
     def send(self, message):
         self.process.stdin.write(json.dumps({"jsonrpc": "2.0", **message}).encode() + b"\n")
@@ -135,8 +140,16 @@ class GatewaySession:
         return Reply(text, match.group(1) if match else None, asks, bool(result.get("isError")))
 
     def close(self):
-        self.process.stdin.close()
-        self.process.wait()
+        """Never raises for a gateway that already went away. Whoever was talking to it has seen that, and says so."""
+        try:
+            self.process.stdin.close()
+        except OSError:
+            pass
+        try:
+            self.process.wait(timeout=CASE_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait()
         self.timer.cancel()
         self.process.stdout.close()
 

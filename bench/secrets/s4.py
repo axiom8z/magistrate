@@ -5,8 +5,9 @@
         --expect-commit <sha> --expect-rules <hash> --date <YYYY-MM-DD> [--ledger eval/ledger.jsonl]
 
 This runs the scanner alone, on each case's payload. It isn't that project's own method, which drives a whole product
-through an adapter, so this is not one of its results. Cases count like this, and all of it was fixed before any case
-was read, from the project's docs/SPEC.md:
+through an adapter, so this is not one of its results. That project's tags are reporting labels and never select its
+cases. Selecting by them here is this script's own choice. Cases count like this, and all of it was fixed before any
+case was read, from the project's docs/SPEC.md:
 
 - A case is in scope if it's expected to be blocked and needs data-loss scanning, by its `requires` or its tags. Most of
   the corpus tests other things, like server-side request forgery, which a secret scanner has no part in.
@@ -27,12 +28,15 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent))
+import ledger  # noqa: E402
 import s3  # noqa: E402
 import score  # noqa: E402
+import shared  # noqa: E402
 
 SCANNING = {"url_dlp_scanning", "request_body_dlp_scanning", "header_dlp_scanning", "mcp_input_dlp_scanning", "a2a_dlp_scanning",
-            "websocket_dlp_scanning", "crypto_dlp_scanning", "entropy_scanning"}
-TAGS = {"url_dlp", "request_body_dlp", "header_dlp", "mcp_tool_result_dlp_scanning", "websocket_dlp", "crypto_dlp"}
+            "websocket_dlp_scanning", "crypto_dlp_scanning", "entropy_scanning", "hostname_exfil_scanning"}
+TAGS = {"url_dlp", "request_body_dlp", "header_dlp", "mcp_tool_result_dlp_scanning", "websocket_dlp", "crypto_dlp", "hostname_exfil"}
 
 
 def in_scope(case):
@@ -110,6 +114,15 @@ def main():
     options = parser.parse_args()
     sys.stdout.reconfigure(newline="\n")
 
+    # All of this comes before a single case is opened.
+    facts = shared.header(scanner=options.scanner)
+    for line in facts:
+        print(line)
+    if options.ledger:
+        if ledger.already_scored(options.ledger, "S4"):
+            sys.exit("S4 already has a first score, so this would be a second one")
+        if shared.evidence_problems(facts):
+            sys.exit(f"this can't stand as a first score: {shared.evidence_problems(facts)}")
     commit = subprocess.run(["git", "-C", str(options.bench), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
     if commit != options.expect_commit:
         sys.exit(f"the corpus is at {commit}, not the commit named at the freeze")
@@ -130,7 +143,7 @@ def main():
     print()
     headline = summary(cases, s3.read_results(results_path, options.expect_rules))
     if options.ledger:
-        score.append_ledger(options.ledger, [{"set": "S4", "date": options.date, "rules_hash": options.expect_rules, "corpus_commit": commit, "set_hash": set_hash, "headline": headline}])
+        score.append_ledger(options.ledger, [{"set": "S4", "date": options.date, "rules_hash": options.expect_rules, "commit": shared.run_commit(facts), "corpus_commit": commit, "set_hash": set_hash, "headline": headline}])
 
 
 if __name__ == "__main__":

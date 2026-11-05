@@ -14,16 +14,25 @@ import collections
 import hashlib
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
+import ledger  # noqa: E402
 import replay_logs  # noqa: E402
 import score  # noqa: E402
+import shared  # noqa: E402
 
 FAILURE_LINE = "over 1 false hit per 1,000 calls"
+HALF_A_CHARACTER = re.compile("[\ud800-\udfff]")
+
+
+def whole(text):
+    """Half a character can't reach the scanner, and the gateway repairs it the same way before it scans."""
+    return HALF_A_CHARACTER.sub("\ufffd", text)
 
 
 def strings(args):
@@ -32,12 +41,12 @@ def strings(args):
 
     def walk(item):
         if isinstance(item, str):
-            values.append(item)
+            values.append(whole(item))
         elif isinstance(item, (int, float)) and not isinstance(item, bool):
             values.append(json.dumps(item))
         elif isinstance(item, dict):
             for name, inner in item.items():
-                names.append(name)
+                names.append(whole(name))
                 walk(inner)
         elif isinstance(item, list):
             for inner in item:
@@ -53,9 +62,10 @@ def pipelines(clone):
 
 
 def write_set(clone, path):
-    """One line per call. Returns the counts per pipeline, and how many calls had no arguments to scan."""
+    """One line per call. Returns the counts per pipeline, how many calls had no arguments to scan, and how many tool messages
+    held no call that could be read. A pipeline with no calls at all still gets a line, so it can't vanish from the table."""
     runs = clone / "runs"
-    per_model, empty = collections.Counter(), 0
+    per_model, empty, unreadable = collections.Counter({model: 0 for model in pipelines(clone)}), 0, 0
     with open(path, "w", encoding="utf-8", newline="\n") as out:
         for model in pipelines(clone):
             for suite in replay_logs.SUITES:
@@ -63,17 +73,16 @@ def write_set(clone, path):
                 logs = sorted(root.glob("user_task_*/none/none.json")) + sorted(root.glob("user_task_*/important_instructions/injection_task_*.json"))
                 for log in logs:
                     data = json.loads(log.read_text(encoding="utf-8"))
-                    _, calls = replay_logs.tp.walk(data["messages"])
+                    calls, lost = replay_logs.read_calls(data["messages"])
+                    unreadable += lost
                     for number, (tool, args, _output, _error) in enumerate(calls):
-                        if not tool:
-                            continue
                         leaves = strings(args)
                         per_model[model] += 1
                         if not leaves:
                             empty += 1
-                        case = f"{model}/{suite}/{log.parts[-3]}/{log.stem}/{number}/{tool}"
+                        case = whole(f"{model}/{suite}/{log.parts[-3]}/{log.stem}/{number}/{tool}")
                         out.write(json.dumps({"id": case, "calls": [leaves]}) + "\n")
-    return per_model, empty
+    return per_model, empty, unreadable
 
 
 def read_results(path, expect_rules):
@@ -127,9 +136,22 @@ def main():
     options = parser.parse_args()
     sys.stdout.reconfigure(newline="\n")
 
+    # All of this comes before a single log is opened.
+    facts = shared.header(scanner=options.scanner, clone=options.clone)
+    for line in facts:
+        print(line)
+    if options.ledger:
+        if ledger.already_scored(options.ledger, "S3"):
+            sys.exit("S3 already has a first score, so this would be a second one")
+        if shared.evidence_problems(facts):
+            sys.exit(f"this can't stand as a first score: {shared.evidence_problems(facts)}")
+    new_models = set(replay_logs.models_for("new", options.clone))
+    if new_models != set(replay_logs.NEW) and options.ledger:
+        sys.exit(f"these aren't the models named at the freeze: {sorted(new_models ^ set(replay_logs.NEW))}")
+
     options.work.mkdir(parents=True, exist_ok=True)
     set_path, results_path = options.work / "s3.jsonl", options.work / "s3.results.jsonl"
-    per_model, empty = write_set(options.clone, set_path)
+    per_model, empty, unreadable = write_set(options.clone, set_path)
     with open(results_path, "w", encoding="utf-8", newline="\n") as out:
         subprocess.run([str(options.scanner), str(set_path)], stdout=out, check=True)
     set_hash = hashlib.sha256(set_path.read_bytes()).hexdigest()
@@ -140,11 +162,12 @@ def main():
     print(f"S3 hash             {set_hash}")
     print(f"pipelines           {len(per_model)}")
     print(f"calls with no arguments, which nothing could flag: {empty}")
+    print(f"tool messages holding no call that could be read, so not scanned: {unreadable}")
     print("Rates are cut, never rounded. The failure line is checked on exact counts.")
     print()
     headline = summary(read_results(results_path, options.expect_rules), per_model)
     if options.ledger:
-        score.append_ledger(options.ledger, [{"set": "S3", "date": options.date, "rules_hash": options.expect_rules, "set_hash": set_hash, "headline": headline}])
+        score.append_ledger(options.ledger, [{"set": "S3", "date": options.date, "rules_hash": options.expect_rules, "commit": shared.run_commit(facts), "set_hash": set_hash, "headline": headline}])
 
 
 if __name__ == "__main__":
