@@ -410,8 +410,8 @@ def main():
     parser.add_argument("--practice", action="store_true", help="a run that nothing will ever record")
     options = parser.parse_args()
     if options.compare:
-        # Printed first, so that this output can be recorded like any other.
-        for line in shared.header():
+        # Printed first, with the hash of each file compared, so that this output can be recorded and tied to its inputs.
+        for line in shared.header() + [shared.input_line(path) for path in options.compare]:
             print(line)
         return compare(*options.compare)
     if options.first_score and options.practice:
@@ -427,7 +427,6 @@ def main():
 
     # A bad path should fail now, and not after every case has run.
     baseline = read_records(options.baseline) if options.baseline else None
-    out = open(options.out, "w", encoding="utf-8", newline="\n") if options.out else None
 
     import agentdojo
 
@@ -436,6 +435,8 @@ def main():
     for line in facts:
         print(line)
     if options.first_score:
+        if not options.out or pathlib.Path(options.out).exists():
+            sys.exit("a first score writes its results to a new --out file, and never over one that exists")
         shared.refuse_unless_first_score(options.first_score, facts)
     harness = Harness(options)
     cases = harness.cases()
@@ -445,6 +446,11 @@ def main():
         missing = [case for case in cases if (case[0], case[1].ID, case[2].ID if case[2] else None) not in covered]
         if missing:
             sys.exit(f"the baseline doesn't cover {len(missing)} of these {len(cases)} cases, so it can't be one")
+    if options.first_score:
+        # Written down last, just before any case runs, so nothing that could still fail spends the one shot.
+        print(shared.start_first_score(options.first_score, facts))
+    # Opened only now, so a run that's refused can't empty a file it was never going to write.
+    out = open(options.out, "w", encoding="utf-8", newline="\n") if options.out else None
     print(f"{len(cases)} cases on arm {options.arm}, approver {options.approver}, {options.workers} at a time", file=sys.stderr, flush=True)
     records = []
     with concurrent.futures.ThreadPoolExecutor(options.workers) as pool:
@@ -456,6 +462,7 @@ def main():
                 out.flush()
     if out:
         out.close()
+        print(shared.results_line(options.out))
     named = {"none": "no gateway", "pass": "pass mode", "unreviewed": "the init draft, unedited"}.get(options.arm, "merged labellers' answers" if options.labels else "forecast labels")
     if baseline is None and options.arm == "none":
         baseline = records

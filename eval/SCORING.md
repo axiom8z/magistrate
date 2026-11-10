@@ -17,7 +17,13 @@ This page is frozen with the F1 tag, before the data it scores gets opened. It s
 | Outside corpus for S4 | agent-egress-bench at `52eff2f0a60aafa1d49a5a8c0795677279674031` |
 | Sampling seed for T2 | `20261104`, drawn as `random.Random("20261104:<purpose>")` |
 
-Every scored run prints what ran at the top of its output: the repo commit and whether it was clean, the commit its binary was built from, and the benchmark's commit. A run given `--first-score <name>`, and S3 and S4 given `--ledger`, refuse before they open any data if that account doesn't check out, or if the ledger already holds a first score for that set. `bench/ledger.py` checks again when recording. Reading the held-back logs needs `--first-score` or `--practice`, and a practice run says so in its output, so nothing will ever record it. The ledger and `docs/evidence/` don't count as changed code, because scored runs write them.
+Every scored run prints what ran at the top of its output: the repo commit and whether it was clean, the commit its binary was built from, and the benchmark's commit. The ledger and `docs/evidence/` don't count as changed code, because scored runs write them.
+
+A run given `--first-score <name>`, and S3 and S4 given `--ledger`, refuse before they open any data if that account doesn't check out, or if the ledger already holds a first score for that set, or a run that started as one. If they go ahead, they write a `started` line to the ledger just before they open the data, and print a line naming that start. So a run that dies partway is on record, and so is a second try at one. `bench/ledger.py` records an output only under the start it names, and only once. A started run that produced nothing that stands can only be passed by recording it as abandoned, with why, using `bench/ledger.py --abandon <token> --why <text>`, and that stays on record too.
+
+A first score never writes over a file that exists. A run that writes data prints the data's hash, the ledger records the data only if it matches, and a comparison prints the hash of each file it compares. So a comparison is recorded only if both its inputs are the data of recorded first scores.
+
+Reading the held-back logs needs `--first-score`, or `--practice` on made-up logs. A practice run says so in its output, so nothing will ever record it, and it's refused on the pinned benchmark, where it would read the held-back logs.
 
 ## Labels, between F1 and F2
 
@@ -35,7 +41,7 @@ An earlier session labelled from an earlier rubric as a pilot. Its report led to
 
 1. Build both binaries from the F2 commit, `magistrate` and `test/secretscore`, before anything else, while nothing in the tree is changed or untracked. Go stamps a binary with whether the tree was clean when it was built.
 2. Run every first score below without committing in between, so that each binary still matches HEAD. Give each one `--first-score <name>`, and keep its output outside the repository until all of them have run.
-3. Record T0 and T1 with `bench/ledger.py --set <name> --output <file> --scanner <secretscore binary> --date <date> --ledger eval/ledger.jsonl`. S3 and S4 record themselves with `--ledger`.
+3. Record T0 and T1 with `bench/ledger.py --set <name> --output <file> --data <its results file> --scanner <secretscore binary> --date <date> --ledger eval/ledger.jsonl`, the runs first and the comparisons after. S3 and S4 record themselves with `--ledger`.
 4. Copy the outputs into `docs/evidence/`, and commit them with the ledger.
 
 The names are `T0-value`, `T0-session`, `T0-compare-arms`, `T1-none`, `T1-pass`, `T1-compare`, `T1-value`, `S3` and `S4`.

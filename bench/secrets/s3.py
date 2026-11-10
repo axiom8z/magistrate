@@ -144,14 +144,13 @@ def main():
     facts = shared.header(scanner=options.scanner, clone=options.clone)
     for line in facts:
         print(line)
-    if options.ledger:
-        if ledger.already_scored(options.ledger, "S3"):
-            sys.exit("S3 already has a first score, so this would be a second one")
-        if shared.evidence_problems(facts):
-            sys.exit(f"this can't stand as a first score: {shared.evidence_problems(facts)}")
     new_models = set(replay_logs.models_for("new", options.clone))
     if new_models != set(replay_logs.NEW) and options.ledger:
         sys.exit(f"these aren't the models named at the freeze: {sorted(new_models ^ set(replay_logs.NEW))}")
+    # Written down last, just before a log is opened, so nothing that could still fail spends the one shot.
+    first = shared.start_first_score("S3", facts, options.ledger) if options.ledger else None
+    if first:
+        print(first)
 
     options.work.mkdir(parents=True, exist_ok=True)
     set_path, results_path = options.work / "s3.jsonl", options.work / "s3.results.jsonl"
@@ -172,7 +171,7 @@ def main():
     print()
     headline = summary(read_results(results_path, options.expect_rules), per_model)
     if options.ledger:
-        score.append_ledger(options.ledger, [{"set": "S3", "date": options.date, "rules_hash": options.expect_rules, "commit": shared.run_commit(facts), "set_hash": set_hash, "headline": headline}])
+        shared.finish_first_score("S3", first.split()[-1], {"date": options.date, "rules_hash": options.expect_rules, "commit": shared.run_commit(facts), "set_hash": set_hash, "headline": headline}, options.ledger)
 
 
 if __name__ == "__main__":

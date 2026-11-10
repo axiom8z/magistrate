@@ -598,8 +598,8 @@ def compare_arms(value_path, session_path):
 
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == "--compare-arms":
-        # Printed first, so that this output can be recorded like any other.
-        for line in shared.header():
+        # Printed first, with the hash of each file compared, so that this output can be recorded and tied to its inputs.
+        for line in shared.header() + [shared.input_line(sys.argv[2]), shared.input_line(sys.argv[3])]:
             print(line)
         return compare_arms(sys.argv[2], sys.argv[3])
     parser = argparse.ArgumentParser()
@@ -621,7 +621,13 @@ def main():
         print(line)
     if options.models == "new" and not (options.first_score or options.practice):
         sys.exit("--models new reads logs held back for a first score, so it needs --first-score <name>, or --practice on made-up logs")
+    if options.first_score and options.models != "new":
+        sys.exit("T0's first scores are on the models nobody opened, so --first-score needs --models new")
+    if options.practice and options.models == "new" and not shared.practice_allowed(options.clone):
+        sys.exit("this is the pinned benchmark, so practice would read the held-back logs. Practice runs on made-up logs")
     if options.first_score:
+        if options.dump and pathlib.Path(options.dump).exists():
+            sys.exit(f"{options.dump} already exists, and a first score never writes over a file")
         shared.refuse_unless_first_score(options.first_score, facts)
     # A bad path should fail now, and not after every log has run.
     dump = open(options.dump, "w", encoding="utf-8", newline="\n") if options.dump else None
@@ -655,6 +661,9 @@ def main():
     models = models_for(options.models, options.clone)
     if options.models == "new" and set(models) != set(NEW):
         sys.exit(f"these aren't the models named at the freeze: {sorted(set(models) ^ set(NEW))}")
+    if options.first_score:
+        # Written down last, just before a log is opened, so nothing that could still fail spends the one shot.
+        print(shared.start_first_score(options.first_score, facts))
     cases, failed = load_cases(options.clone, models, trusted)
     print(f"logs where the model's API failed, left out because they show nothing about the attack: {dict(failed)}")
     print(f"{len(cases)} logs to replay on arm {options.arm}, {options.workers} at a time", file=sys.stderr, flush=True)
@@ -679,6 +688,7 @@ def main():
                 dump.write(json.dumps({"model": case["model"], "suite": case["suite"], "user_task": case["user_task"], "injection": case["injection"],
                                        "flagged": outcome.flagged, "asks": outcome.asks, "mismatches": outcome.mismatches,
                                        "ignored": outcome.ignored, "problem": outcome.problem}) + "\n")
+        print(shared.results_line(options.dump))
     if options.models == "opened":
         report(options.arm, cases, results, sys.stdout, labels=labels)
         return

@@ -327,7 +327,7 @@ def append_ledger(path, entries):
     known = set()
     if path.exists():
         for line in path.read_text(encoding="utf-8").splitlines():
-            known.add(json.loads(line)["set_hash"])
+            known.add(json.loads(line).get("set_hash"))
     if any(entry["set_hash"] in known for entry in entries):
         sys.exit("the ledger already holds one of these sets, so nothing was appended")
     with open(path, "a", encoding="utf-8", newline="\n") as ledger:

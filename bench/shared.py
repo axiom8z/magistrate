@@ -5,6 +5,7 @@ and bench/ledger.py refuses an output whose lines don't check out.
 """
 import hashlib
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -122,22 +123,94 @@ def evidence_problems(lines):
     return found
 
 
-def already_scored(path, name):
-    """Whether the ledger holds a first score for this set. Post-hoc lines don't count as one."""
+def entries(path):
     path = pathlib.Path(path)
-    if not path.exists():
-        return False
-    return any(entry["set"] == name and "label" not in entry for entry in map(json.loads, path.read_text(encoding="utf-8").splitlines()))
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.exists() else []
+
+
+def already_scored(path, name):
+    """Whether the ledger holds a first score for this set. Post-hoc, started and abandoned lines don't count as one."""
+    return any(entry["set"] == name and "label" not in entry for entry in entries(path))
+
+
+def already_started(path, name):
+    """Whether a run started as this set and wasn't recorded as abandoned."""
+    abandoned = {e.get("token") for e in entries(path) if e["set"] == name and e.get("label") == "abandoned"}
+    return any(e["set"] == name and e.get("label") == "started" and e.get("token") not in abandoned for e in entries(path))
+
+
+def append(path, entry):
+    pathlib.Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8", newline="\n") as ledger:
+        ledger.write(json.dumps(entry, separators=(",", ":")) + "\n")
 
 
 def refuse_unless_first_score(name, facts, ledger=LEDGER):
     """Stops a one-shot run before it opens anything, unless what's about to run could stand as a score, and the ledger has
-    no first score for this set yet. Finding out afterwards would have spent the one shot."""
+    neither a first score for this set nor a run that started as one. Finding out afterwards would have spent the one shot."""
     problems = evidence_problems(facts)
     if already_scored(ledger, name):
         problems.append(f"{name} already has a first score")
+    elif already_started(ledger, name):
+        problems.append(f"a run already started as {name}, so this would be a second look")
     if problems:
         sys.exit(f"this can't run as the first score {name}: {'; '.join(problems)}")
+
+
+def start_first_score(name, facts, ledger=LEDGER):
+    """Refuses as above, then writes down that the run started. Called last, just before the data is opened, so that nothing
+    which could still fail spends the one shot, and a run that dies later is still on record. Returns the line its output
+    must carry, which ties that output to this start."""
+    refuse_unless_first_score(name, facts, ledger)
+    token = os.urandom(8).hex()
+    append(ledger, {"set": name, "label": "started", "token": token, "commit": run_commit(facts)})
+    return f"first score {name}, run {token}"
+
+
+def first_score_of(lines):
+    """(name, token) from a run's output, or None if it didn't run as a first score."""
+    for line in lines:
+        match = re.fullmatch(r"first score (\S+), run ([0-9a-f]{16})", line)
+        if match:
+            return match.group(1), match.group(2)
+    return None
+
+
+def finish_first_score(name, token, entry, ledger=LEDGER):
+    """Records the score of the run that started with this token, once. Any other run is refused."""
+    if not any(e["set"] == name and e.get("label") == "started" and e.get("token") == token for e in entries(ledger)):
+        sys.exit(f"no run started as {name} with this output's token, so it can't be that first score")
+    if any(e["set"] == name and e.get("label") == "abandoned" and e.get("token") == token for e in entries(ledger)):
+        sys.exit("that run was recorded as abandoned")
+    if already_scored(ledger, name):
+        sys.exit(f"{name} already has a first score")
+    append(ledger, dict(entry, set=name, token=token))
+
+
+def abandon(path, name, token, why, date):
+    """Records that a started run produced nothing that stands, and why, so that another can start. Never quietly."""
+    if not any(e["set"] == name and e.get("label") == "started" and e.get("token") == token for e in entries(path)):
+        sys.exit(f"no run started as {name} with that token")
+    if any(e["set"] == name and e.get("token") == token and "label" not in e for e in entries(path)):
+        sys.exit("that run's score is already recorded, so it can't be abandoned")
+    append(path, {"set": name, "label": "abandoned", "token": token, "why": why, "date": date})
+
+
+def file_hash(path):
+    return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+
+
+def input_line(path):
+    return f"input {pathlib.Path(path).name} sha256 {file_hash(path)}"
+
+
+def results_line(path):
+    return f"results sha256 {file_hash(path)}"
+
+
+def practice_allowed(clone):
+    """A practice run is for made-up logs. On the pinned benchmark it would read the held-back logs and print their scores."""
+    return git("rev-parse", "HEAD", cwd=clone) != AGENTDOJO_COMMIT
 
 
 def run_commit(lines):

@@ -119,13 +119,14 @@ def main():
     for line in facts:
         print(line)
     if options.ledger:
-        if ledger.already_scored(options.ledger, "S4"):
-            sys.exit("S4 already has a first score, so this would be a second one")
-        if shared.evidence_problems(facts):
-            sys.exit(f"this can't stand as a first score: {shared.evidence_problems(facts)}")
+        shared.refuse_unless_first_score("S4", facts, options.ledger)
     commit = subprocess.run(["git", "-C", str(options.bench), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
     if commit != options.expect_commit:
         sys.exit(f"the corpus is at {commit}, not the commit named at the freeze")
+    # Written down last, just before a case is opened, so nothing that could still fail spends the one shot.
+    first = shared.start_first_score("S4", facts, options.ledger) if options.ledger else None
+    if first:
+        print(first)
     options.work.mkdir(parents=True, exist_ok=True)
     set_path, results_path = options.work / "s4.jsonl", options.work / "s4.results.jsonl"
     cases, skipped = read_cases(options.bench)
@@ -143,7 +144,7 @@ def main():
     print()
     headline = summary(cases, s3.read_results(results_path, options.expect_rules))
     if options.ledger:
-        score.append_ledger(options.ledger, [{"set": "S4", "date": options.date, "rules_hash": options.expect_rules, "commit": shared.run_commit(facts), "corpus_commit": commit, "set_hash": set_hash, "headline": headline}])
+        shared.finish_first_score("S4", first.split()[-1], {"date": options.date, "rules_hash": options.expect_rules, "commit": shared.run_commit(facts), "corpus_commit": commit, "set_hash": set_hash, "headline": headline}, options.ledger)
 
 
 if __name__ == "__main__":

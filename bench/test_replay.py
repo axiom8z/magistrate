@@ -122,6 +122,15 @@ def test_evidence():
         (repo / "code.py").write_text("changed\n", encoding="utf-8")
         check(shared.repo_line(repo).endswith(" MODIFIED"), "changing the code does")
 
+        # Practice is for made-up logs: on the pinned benchmark it would read the held-back ones.
+        pinned = shared.AGENTDOJO_COMMIT
+        try:
+            shared.AGENTDOJO_COMMIT = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+            check(not shared.practice_allowed(repo), "practice is refused on the pinned benchmark")
+        finally:
+            shared.AGENTDOJO_COMMIT = pinned
+        check(shared.practice_allowed(repo), "and allowed anywhere else")
+
         ledger_path = pathlib.Path(folder) / "ledger.jsonl"
         ledger_path.write_text('{"set": "T0-value", "set_hash": "a"}\n{"set": "S1", "label": "post-hoc", "set_hash": "b"}\n', encoding="utf-8")
         for facts, name, refused, what in (
@@ -293,7 +302,10 @@ def test_end_to_end(binary):
         check(unmarked.returncode != 0 and "--first-score" in unmarked.stderr and "logs to replay" not in unmarked.stderr, "reading the held-back logs needs a first score or practice, said up front")
         unpinned = subprocess.run(command + ["--first-score", "T0-test"], capture_output=True, text=True, encoding="utf-8", timeout=120)
         check(unpinned.returncode != 0 and "can't run as the first score T0-test" in unpinned.stderr and "logs to replay" not in unpinned.stderr, "a first score on the wrong benchmark is refused before any log is read")
+        opened = subprocess.run(command[:-4] + ["--arm", "value", "--first-score", "T0-value"], capture_output=True, text=True, encoding="utf-8", timeout=120)
+        check(opened.returncode != 0 and "needs --models new" in opened.stderr, "T0's first scores are only ever on the new models")
         done = subprocess.run(command + ["--practice", "--dump", str(dump)], capture_output=True, text=True, encoding="utf-8", timeout=300)
+        check(shared.results_line(dump) in done.stdout, "the output names its dump by hash, so the two can't be swapped")
         text = done.stdout
         check(done.returncode == 0, f"a first score runs to the end whatever the logs hold: {done.stderr[-300:]}")
         new_part, hardened_part = (text.split("a hardened model, printed apart") + [""])[:2]
@@ -319,6 +331,7 @@ def test_end_to_end(binary):
         check(sum(1 for r in rows if r["problem"]) == 4 and len(rows) == 13, "the dump holds every log, and says which broke")
         compared = subprocess.run([sys.executable, "-I", "-X", "utf8", str(HERE / "replay_logs.py"), "--compare-arms", str(dump), str(dump)], capture_output=True, text=True, encoding="utf-8", timeout=120)
         check(compared.stdout.startswith("repo commit") and "FAILURE LINE" in compared.stdout, "the comparison of arms says what ran, so it can be recorded")
+        check(compared.stdout.count(shared.input_line(dump)) == 2, "and names each file it compared by hash")
 
         if failures:
             print(text)
