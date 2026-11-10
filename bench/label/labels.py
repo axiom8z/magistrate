@@ -62,17 +62,28 @@ def not_clearly(value, safe):
     return value != safe
 
 
-def written_stores(tools):
-    """The data this labeller says some acting tool writes. A tool nobody clearly called a read counts as acting."""
-    return {tool["store"] for tool in tools.values() if tool.get("store") and tool.get("changes_or_reaches", "unsure") != "no"}
+def suites_of(name, schemas):
+    """The suites a tool is in, by the schema file. Without one, every tool counts as being in one suite together, which is
+    the strict side, because then any act anywhere can write a tool's store."""
+    return (schemas or {}).get(name, {}).get("suites") or [None]
 
 
-def merge(first, second):
+def written_stores(tools, schemas=None):
+    """(suite, store) for the data this labeller says some acting tool writes. A tool nobody clearly called a read counts as
+    acting."""
+    return {(suite, tool["store"]) for name, tool in tools.items() if tool.get("store") and tool.get("changes_or_reaches", "unsure") != "no"
+            for suite in suites_of(name, schemas)}
+
+
+def merge(first, second, schemas=None):
     """Returns the merged answers and every disagreement, by tool and question."""
     if set(first["tools"]) != set(second["tools"]):
         raise ValueError(f'the labellers answered different tools: {sorted(set(first["tools"]) ^ set(second["tools"]))}')
     merged, disagreements = {}, []
-    written = written_stores(first["tools"]), written_stores(second["tools"])
+    written = written_stores(first["tools"], schemas), written_stores(second["tools"], schemas)
+
+    def store_written(name, store, by):
+        return bool(store) and any((suite, store) in by for suite in suites_of(name, schemas))
     for name in sorted(first["tools"]):
         a, b = first["tools"][name], second["tools"][name]
         tool = {}
@@ -83,7 +94,7 @@ def merge(first, second):
             tool[question] = safe if not (not_clearly(answer_a, safe) or not_clearly(answer_b, safe)) else ("yes" if safe == "no" else "no")
         # A store name only means something inside one labeller's file, so two spellings aren't a disagreement. What counts is
         # whether, by either labeller's own names, an act writes what this tool returns. If so, its output can't be trusted.
-        if a.get("store") in written[0] or b.get("store") in written[1]:
+        if store_written(name, a.get("store"), written[0]) or store_written(name, b.get("store"), written[1]):
             tool["outsiders_write_output"] = "yes"
         args_a, args_b = a.get("args", {}), b.get("args", {})
         tool["args"] = {}
@@ -219,8 +230,9 @@ def main():
     if len(options.answers) != 2 or not options.out or not options.schemas:
         parser.error("merge takes two answer files, --out and --schemas")
     first, second = (json.loads(path.read_text(encoding="utf-8")) for path in options.answers)
-    merged, disagreements = merge(first, second)
-    filled = fill_missing(merged, json.loads(options.schemas.read_text(encoding="utf-8")))
+    schemas = json.loads(options.schemas.read_text(encoding="utf-8"))
+    merged, disagreements = merge(first, second, schemas)
+    filled = fill_missing(merged, schemas)
     options.out.write_text(json.dumps({"labellers": [first["labeller"], second["labeller"]], "tools": merged, "disagreements": disagreements, "filled_as_control": filled}, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(f'{first["labeller"]} and {second["labeller"]}: {len(merged)} tools, {len(disagreements)} disagreements, {len(filled)} arguments neither answered, filled as control')
     for line in disagreements:

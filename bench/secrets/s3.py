@@ -65,15 +65,19 @@ def write_set(clone, path):
     """One line per call. Returns the counts per pipeline, how many calls had no arguments to scan, and how many tool messages
     held no call that could be read. A pipeline with no calls at all still gets a line, so it can't vanish from the table."""
     runs = clone / "runs"
-    per_model, empty, unreadable = collections.Counter({model: 0 for model in pipelines(clone)}), 0, 0
+    per_model, empty, unreadable, broken = collections.Counter({model: 0 for model in pipelines(clone)}), 0, 0, 0
     with open(path, "w", encoding="utf-8", newline="\n") as out:
         for model in pipelines(clone):
             for suite in replay_logs.SUITES:
                 root = runs / model / suite
                 logs = sorted(root.glob("user_task_*/none/none.json")) + sorted(root.glob("user_task_*/important_instructions/injection_task_*.json"))
                 for log in logs:
-                    data = json.loads(log.read_text(encoding="utf-8"))
-                    calls, lost = replay_logs.read_calls(data["messages"])
+                    try:
+                        calls, lost = replay_logs.read_calls(json.loads(log.read_text(encoding="utf-8"))["messages"])
+                    except (ValueError, KeyError, TypeError, AttributeError):
+                        # One log that can't be read is counted. It doesn't end the run, which would spend the one shot.
+                        broken += 1
+                        continue
                     unreadable += lost
                     for number, (tool, args, _output, _error) in enumerate(calls):
                         leaves = strings(args)
@@ -82,7 +86,7 @@ def write_set(clone, path):
                             empty += 1
                         case = whole(f"{model}/{suite}/{log.parts[-3]}/{log.stem}/{number}/{tool}")
                         out.write(json.dumps({"id": case, "calls": [leaves]}) + "\n")
-    return per_model, empty, unreadable
+    return per_model, empty, unreadable, broken
 
 
 def read_results(path, expect_rules):
@@ -151,7 +155,7 @@ def main():
 
     options.work.mkdir(parents=True, exist_ok=True)
     set_path, results_path = options.work / "s3.jsonl", options.work / "s3.results.jsonl"
-    per_model, empty, unreadable = write_set(options.clone, set_path)
+    per_model, empty, unreadable, broken = write_set(options.clone, set_path)
     with open(results_path, "w", encoding="utf-8", newline="\n") as out:
         subprocess.run([str(options.scanner), str(set_path)], stdout=out, check=True)
     set_hash = hashlib.sha256(set_path.read_bytes()).hexdigest()
@@ -163,6 +167,7 @@ def main():
     print(f"pipelines           {len(per_model)}")
     print(f"calls with no arguments, which nothing could flag: {empty}")
     print(f"tool messages holding no call that could be read, so not scanned: {unreadable}")
+    print(f"logs that couldn't be read at all, so not scanned: {broken}")
     print("Rates are cut, never rounded. The failure line is checked on exact counts.")
     print()
     headline = summary(read_results(results_path, options.expect_rules), per_model)

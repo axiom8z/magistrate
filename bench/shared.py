@@ -4,13 +4,19 @@ A first score runs once, so its saved output has to show what produced it. Every
 and bench/ledger.py refuses an output whose lines don't check out.
 """
 import hashlib
+import json
 import pathlib
 import re
 import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+LEDGER = ROOT / "eval" / "ledger.jsonl"
 AGENTDOJO_COMMIT = "089ed468cf3ed0322acc66b0211f26d9d90dbf60"
+# What scored runs write into the repository. Changing these changes nothing that runs, so they don't make it unclean.
+OUTPUTS = ("eval/ledger.jsonl", "docs/evidence")
+# A run on made-up data, to test the scoring itself. Its output says so, and nothing will record it.
+PRACTICE = "practice run, never a score"
 EVIDENCE_LINES = ("repo commit", "gateway built from", "scanner built from", "agentdojo checkout", "agentdojo installed")
 
 # Refusals that mean something broke, or that the harness can't cause when it works. They aren't the gateway deciding, so a
@@ -35,10 +41,10 @@ def git(*args, cwd=ROOT):
     return done.stdout.strip() if done.returncode == 0 else None
 
 
-def repo_line():
-    commit = git("rev-parse", "HEAD")
-    # Only tracked files matter. A work folder or a result next to the code changes nothing that ran.
-    changed = git("status", "--porcelain", "--untracked-files=no")
+def repo_line(root=ROOT):
+    commit = git("rev-parse", "HEAD", cwd=root)
+    # Only tracked files matter, and not the ones scored runs write. A work folder or a result changes nothing that ran.
+    changed = git("status", "--porcelain", "--untracked-files=no", "--", ".", *(f":(exclude){path}" for path in OUTPUTS), cwd=root)
     return f'repo commit {commit or "unknown"} {"clean" if changed == "" else "MODIFIED"}'
 
 
@@ -93,7 +99,9 @@ def evidence_problems(lines):
     commit = None
     seen = False
     for line in lines:
-        if line.startswith("repo commit"):
+        if line == PRACTICE:
+            found.append("it was a practice run")
+        elif line.startswith("repo commit"):
             seen = True
             parts = line.split()
             commit = parts[2]
@@ -112,6 +120,24 @@ def evidence_problems(lines):
     if not seen:
         found.append("the output doesn't say what ran")
     return found
+
+
+def already_scored(path, name):
+    """Whether the ledger holds a first score for this set. Post-hoc lines don't count as one."""
+    path = pathlib.Path(path)
+    if not path.exists():
+        return False
+    return any(entry["set"] == name and "label" not in entry for entry in map(json.loads, path.read_text(encoding="utf-8").splitlines()))
+
+
+def refuse_unless_first_score(name, facts, ledger=LEDGER):
+    """Stops a one-shot run before it opens anything, unless what's about to run could stand as a score, and the ledger has
+    no first score for this set yet. Finding out afterwards would have spent the one shot."""
+    problems = evidence_problems(facts)
+    if already_scored(ledger, name):
+        problems.append(f"{name} already has a first score")
+    if problems:
+        sys.exit(f"this can't run as the first score {name}: {'; '.join(problems)}")
 
 
 def run_commit(lines):

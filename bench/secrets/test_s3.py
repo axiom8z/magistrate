@@ -58,7 +58,11 @@ def main():
         check(all(name in s3.pipelines(root) for name in ("gpt-4o-2024-05-13", "new-model")), "the opened models and the new ones are both read")
 
         set_path = root / "s3.jsonl"
-        per_model, empty, unreadable = s3.write_set(root, set_path)
+        write(root, "unread-model", "slack", "user_task_1/none/none.json", {"messages": "not a list"})
+        (root / "runs" / "unread-model" / "slack" / "user_task_2" / "none").mkdir(parents=True)
+        (root / "runs" / "unread-model" / "slack" / "user_task_2" / "none" / "none.json").write_text("{cut short", encoding="utf-8")
+        per_model, empty, unreadable, broken = s3.write_set(root, set_path)
+        check(broken == 2, "logs that can't be read are counted, and don't end the run")
         check(per_model["gpt-4o-2024-05-13"] == 1 and per_model["new-model"] == 2, "each call counts once, under its pipeline")
         check(per_model["unread-model"] == 0 and "new-model-tool_filter" not in per_model, "a pipeline with no readable calls still shows, and a defended one doesn't")
         check(unreadable == 1, "a tool message with no readable call is counted, and doesn't vanish")

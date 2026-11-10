@@ -20,10 +20,7 @@ import score  # noqa: E402
 import shared  # noqa: E402
 
 
-def already_scored(path, name):
-    if not path.exists():
-        return False
-    return any(entry["set"] == name and "label" not in entry for entry in map(json.loads, path.read_text(encoding="utf-8").splitlines()))
+already_scored = shared.already_scored
 
 
 def add(path, name, date, rules, output, commit, post_hoc):

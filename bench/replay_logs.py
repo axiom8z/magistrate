@@ -81,6 +81,7 @@ BINDS = {"search_files": ("id_", "file"), "search_files_by_filename": ("id_", "f
 BIND_ARGS = {"file_id": "file", "event_id": "event", "email_id": "email", "id": "transaction"}
 RECORD_ID = re.compile(r"^(?:- |  )?(id_|id):\s*(.*)$")
 YAML_KEY = re.compile(r"^([A-Za-z_]\w*):\s+(\S.*)$")
+YAML_BLOCK = re.compile(r"^([A-Za-z_]\w*):\s*$")
 
 
 def python_type(node):
@@ -204,19 +205,45 @@ def trusted_value(text):
             pass
     lines = text.splitlines()
     if lines and lines[0].startswith("- "):
-        items, current = [], None
-        for line in lines:
-            if line.startswith("- "):
-                match = YAML_KEY.match(line[2:])
-                current = {match.group(1): plain_text(match.group(2))} if match else None
-                items.append(current if match else plain_text(line[2:]))
-            elif current is not None and line.startswith("  "):
-                match = YAML_KEY.match(line[2:])
-                if match:
-                    current[match.group(1)] = plain_text(match.group(2))
-        return {"result": items}
-    record = {match.group(1): plain_text(match.group(2)) for match in map(YAML_KEY.match, lines) if match}
-    return record if record and len(record) == len(lines) else {"result": plain_text(text)}
+        return {"result": yaml_items(lines)}
+    record = yaml_record(lines)
+    return record if record is not None else {"result": plain_text(text)}
+
+
+def yaml_items(lines):
+    """A YAML list of records or plain items, reading the top level of each record only. Nested blocks and the rest of a long
+    value sit deeper in, so they're skipped instead of misread."""
+    items, current = [], None
+    for line in lines:
+        if line.startswith("- "):
+            body = line[2:]
+            match, block = YAML_KEY.match(body), YAML_BLOCK.match(body)
+            if match or block:
+                current = {match.group(1): plain_text(match.group(2))} if match else {}
+                items.append(current)
+            else:
+                current = None
+                items.append(plain_text(body))
+        elif current is not None and line.startswith("  ") and not line.startswith("   "):
+            match = YAML_KEY.match(line[2:])
+            if match:
+                current[match.group(1)] = plain_text(match.group(2))
+    return items
+
+
+def yaml_record(lines):
+    """A YAML record's top level, or None if the text isn't one. Every line at the left edge has to be a key, so prose with a
+    colon in it stays prose."""
+    record = {}
+    for line in lines:
+        if not line.strip() or line.startswith(" "):
+            continue
+        match = YAML_KEY.match(line)
+        if match:
+            record[match.group(1)] = plain_text(match.group(2))
+        elif not YAML_BLOCK.match(line):
+            return None
+    return record or None
 
 
 def structured(tool, text, trusted=TRUSTED):
@@ -400,16 +427,22 @@ def load_cases(clone, models, trusted=TRUSTED):
             paths = [(p, False) for p in sorted(root.glob("user_task_*/none/none.json"))]
             paths += [(p, True) for p in sorted(root.glob("user_task_*/important_instructions/injection_task_*.json"))]
             for path, attacked in paths:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                if data.get("error"):
-                    failed[model] += 1
-                    continue
-                if not data.get("security" if attacked else "utility"):
-                    continue
-                prompt = tp.walk(data["messages"])[0]
-                calls, unreadable = read_calls(data["messages"])
                 user_task = path.parts[-3]
                 injection = int(path.stem.rsplit("_", 1)[1]) if attacked else None
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    if data.get("error"):
+                        failed[model] += 1
+                        continue
+                    if not data.get("security" if attacked else "utility"):
+                        continue
+                    prompt = tp.walk(data["messages"])[0]
+                    calls, unreadable = read_calls(data["messages"])
+                except (ValueError, KeyError, TypeError, AttributeError) as problem:
+                    # One log that can't be read is invalid. It doesn't end the run, which would spend the one shot.
+                    cases.append({"id": f"{len(cases):05d}", "model": model, "suite": suite, "user_task": user_task, "injection": injection,
+                                  "prompt": "", "unreadable": 0, "calls": [], "broken": f"the log can't be read: {type(problem).__name__}"})
+                    continue
                 cases.append({
                     "id": f"{len(cases):05d}", "model": model, "suite": suite, "user_task": user_task, "injection": injection,
                     "prompt": prompt if isinstance(prompt, str) else "",
@@ -565,6 +598,9 @@ def compare_arms(value_path, session_path):
 
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == "--compare-arms":
+        # Printed first, so that this output can be recorded like any other.
+        for line in shared.header():
+            print(line)
         return compare_arms(sys.argv[2], sys.argv[3])
     parser = argparse.ArgumentParser()
     parser.add_argument("--clone", required=True, type=pathlib.Path)
@@ -575,9 +611,18 @@ def main():
     parser.add_argument("--dump")
     parser.add_argument("--labels", type=pathlib.Path, help="merged answers from bench/label/labels.py, in place of the forecast's labels")
     parser.add_argument("--models", default="opened", choices=("opened", "new"), help="`new` is a first score, for after the freeze is pushed")
+    parser.add_argument("--first-score", metavar="NAME", help="run as this first score, which refuses before reading any log unless it could stand as one")
+    parser.add_argument("--practice", action="store_true", help="a run on made-up logs, which nothing will ever record")
     options = parser.parse_args()
-    for line in shared.header(gateway=options.gateway, clone=options.clone):
+    if options.first_score and options.practice:
+        parser.error("a run is either a first score or practice")
+    facts = shared.header(gateway=options.gateway, clone=options.clone) + ([shared.PRACTICE] if options.practice else [])
+    for line in facts:
         print(line)
+    if options.models == "new" and not (options.first_score or options.practice):
+        sys.exit("--models new reads logs held back for a first score, so it needs --first-score <name>, or --practice on made-up logs")
+    if options.first_score:
+        shared.refuse_unless_first_score(options.first_score, facts)
     # A bad path should fail now, and not after every log has run.
     dump = open(options.dump, "w", encoding="utf-8", newline="\n") if options.dump else None
     work = options.work.resolve() / options.arm
@@ -617,6 +662,8 @@ def main():
 
     def one(case):
         """One log. Whatever goes wrong makes it invalid. It never ends the run, and it never counts as a stop."""
+        if case.get("broken"):
+            return Outcome([], 0, 0, [], case["broken"])
         if case["unreadable"]:
             return Outcome([], 0, 0, [], f'{case["unreadable"]} tool messages held no call that could be read')
         try:

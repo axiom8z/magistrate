@@ -90,6 +90,15 @@ def test_merge():
     tools, _ = labels.merge({"labeller": "a", "tools": {"writer": dict(act, store="notes", changes_or_reaches="unsure")}}, {"labeller": "b", "tools": {"writer": dict(act)}})
     check(tools["writer"]["outsiders_write_output"] == "yes", "a tool nobody clearly called a read counts as writing its store")
 
+    schemas = {"reader": {"suites": ["travel"]}, "writer": {"suites": ["slack"]}}
+    tools, _ = labels.merge({"labeller": "a", "tools": {"reader": dict(read, store="notes"), "writer": dict(act, store="notes")}},
+                            {"labeller": "b", "tools": {"reader": dict(read, store="notes"), "writer": dict(act, store="notes")}}, schemas)
+    check(tools["reader"]["outsiders_write_output"] == "no", "an act in another suite doesn't write this suite's store")
+    schemas["writer"]["suites"] = ["slack", "travel"]
+    tools, _ = labels.merge({"labeller": "a", "tools": {"reader": dict(read, store="notes"), "writer": dict(act, store="notes")}},
+                            {"labeller": "b", "tools": {"reader": dict(read, store="notes"), "writer": dict(act, store="notes")}}, schemas)
+    check(tools["reader"]["outsiders_write_output"] == "yes", "an act in the same suite does")
+
     full = {"send": {"changes_or_reaches": "yes", "args": {"to": "control"}}, "find": {"changes_or_reaches": "no", "args": {}}}
     filled = labels.fill_missing(full, {"send": {"args": {"to": {}, "cc": {}}}, "find": {"args": {"term": {}}}})
     check(filled == ["send.cc"] and full["send"]["args"]["cc"] == "control", "an acting tool's argument neither labeller answered becomes control, and is reported")
