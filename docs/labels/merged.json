@@ -1,0 +1,592 @@
+{
+ "labellers": [
+  "fresh AI session 1",
+  "fresh AI session 2"
+ ],
+ "tools": {
+  "add_calendar_event_participants": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "event_id": "control",
+    "participants": "control"
+   }
+  },
+  "add_user_to_channel": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "channel": "control",
+    "user": "control"
+   }
+  },
+  "append_to_file": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "content": "content",
+    "file_id": "control"
+   }
+  },
+  "cancel_calendar_event": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "event_id": "control"
+   }
+  },
+  "check_restaurant_opening_hours": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "create_calendar_event": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "description": "content",
+    "end_time": "date",
+    "location": "content",
+    "participants": "control",
+    "start_time": "date",
+    "title": "content"
+   }
+  },
+  "create_file": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {
+    "content": "content",
+    "filename": "control"
+   }
+  },
+  "delete_email": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "email_id": "control"
+   }
+  },
+  "delete_file": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "file_id": "control"
+   }
+  },
+  "get_all_car_rental_companies_in_city": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_all_hotels_in_city": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_all_restaurants_in_city": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_balance": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_car_fuel_options": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_car_price_per_day": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_car_rental_address": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_car_types_available": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_channels": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_contact_information_for_restaurants": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_cuisine_type_for_restaurants": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_current_day": {
+   "outsiders_write_output": "no",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_day_calendar_events": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_dietary_restrictions_for_all_restaurants": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_draft_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_file_by_id": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_flight_information": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_hotels_address": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_hotels_prices": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_iban": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "yes",
+   "args": {}
+  },
+  "get_most_recent_transactions": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "yes",
+   "args": {}
+  },
+  "get_price_for_restaurants": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_rating_reviews_for_car_rental": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_rating_reviews_for_hotels": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_rating_reviews_for_restaurants": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_received_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_restaurants_address": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_scheduled_transactions": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "yes",
+   "args": {}
+  },
+  "get_sent_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_unread_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_user_info": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "yes",
+   "args": {}
+  },
+  "get_user_information": {
+   "outsiders_write_output": "no",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "yes",
+   "args": {}
+  },
+  "get_users_in_channel": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_webpage": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "url": "control"
+   }
+  },
+  "invite_user_to_slack": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "user": "control",
+    "user_email": "control"
+   }
+  },
+  "list_files": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "post_webpage": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "content": "content",
+    "url": "control"
+   }
+  },
+  "read_channel_messages": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "read_file": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "read_inbox": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "remove_user_from_slack": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "user": "control"
+   }
+  },
+  "reschedule_calendar_event": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "event_id": "control",
+    "new_end_time": "date",
+    "new_start_time": "date"
+   }
+  },
+  "reserve_car_rental": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "company": "control",
+    "end_time": "date",
+    "start_time": "date"
+   }
+  },
+  "reserve_hotel": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "end_day": "date",
+    "hotel": "control",
+    "start_day": "date"
+   }
+  },
+  "reserve_restaurant": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "restaurant": "control",
+    "start_time": "date"
+   }
+  },
+  "schedule_transaction": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "amount": "quantity",
+    "date": "date",
+    "recipient": "control",
+    "recurring": "boolean",
+    "subject": "content"
+   }
+  },
+  "search_calendar_events": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "search_contacts_by_email": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "search_contacts_by_name": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "search_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "search_files": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "search_files_by_filename": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "send_channel_message": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "body": "content",
+    "channel": "control"
+   }
+  },
+  "send_direct_message": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "body": "content",
+    "recipient": "control"
+   }
+  },
+  "send_email": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "attachments": "control",
+    "bcc": "control",
+    "body": "content",
+    "cc": "control",
+    "recipients": "control",
+    "subject": "content"
+   }
+  },
+  "send_money": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "amount": "quantity",
+    "date": "date",
+    "recipient": "control",
+    "subject": "content"
+   }
+  },
+  "share_file": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "email": "control",
+    "file_id": "control",
+    "permission": "enum:r,rw"
+   }
+  },
+  "update_password": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "password": "credential"
+   }
+  },
+  "update_scheduled_transaction": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "amount": "quantity",
+    "date": "date",
+    "id": "control",
+    "recipient": "control",
+    "recurring": "boolean",
+    "subject": "content"
+   }
+  },
+  "update_user_info": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {
+    "city": "control",
+    "first_name": "control",
+    "last_name": "control",
+    "street": "control"
+   }
+  }
+ },
+ "disagreements": [
+  "add_user_to_channel: outsiders_write_output: no against unsure",
+  "get_unread_emails: undoable: yes against unsure",
+  "get_user_info: sensitive: no against unsure",
+  "invite_user_to_slack: outsiders_write_output: no against unsure",
+  "remove_user_from_slack: outsiders_write_output: no against unsure",
+  "update_password: outsiders_write_output: no against unsure"
+ ],
+ "filled_as_control": []
+}
