@@ -109,23 +109,9 @@ def tool_parameters(function):
     return out
 
 
-def suite_tools(clone):
-    """Reads each suite's TOOLS list and the signatures behind it from the source, as text."""
-    base = clone / "src" / "agentdojo" / "default_suites" / "v1"
-    functions = {}
-    for path in (base / "tools").glob("*.py"):
-        for node in ast.parse(path.read_text(encoding="utf-8")).body:
-            if isinstance(node, ast.FunctionDef):
-                functions[node.name] = node
-    suites = {}
-    for suite in SUITES:
-        tree = ast.parse((base / suite / "task_suite.py").read_text(encoding="utf-8"))
-        names = []
-        for node in tree.body:
-            if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "TOOLS":
-                names = [element.id for element in node.value.elts]
-        suites[suite] = {name: tool_parameters(functions[name]) for name in names}
-    return suites
+def suite_tools(clone, suites=SUITES):
+    """Reads each suite's TOOLS list and the signatures behind it from the source, as text, following each suite's imports."""
+    return {suite: {name: tool_parameters(function) for name, function in shared.suite_functions(clone, suite).items()} for suite in suites}
 
 
 def tool_listing(parameters):
@@ -655,7 +641,7 @@ def main():
         base.write_text(json.dumps({"mode": "value", "servers": {"s": {"command": relay[0], "args": relay[1:], "env": ["MAGISTRATE_TOOLS", "MAGISTRATE_CASE"]}}}), encoding="utf-8")
         draft = draft_policy(options.gateway, base, tool_files[suite], work)
         policies[suite] = work / f"policy-{suite}.json"
-        policy = policy_for(options.arm, parameters, draft) if merged is None else answers.policy_for(options.arm, {name: merged[name] for name in parameters}, draft)
+        policy = policy_for(options.arm, parameters, draft) if merged is None else answers.policy_for(options.arm, answers.answers_for(merged, suite, parameters), draft)
         policies[suite].write_text(json.dumps(policy), encoding="utf-8")
 
     models = models_for(options.models, options.clone)

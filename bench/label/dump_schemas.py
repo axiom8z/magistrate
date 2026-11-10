@@ -6,12 +6,19 @@ suites, because then one label couldn't fit both. It reads the checkout's source
 library only.
 
     python -I -X utf8 bench/label/dump_schemas.py --clone <agentdojo checkout> --out docs/labels/schemas.json
+    python -I -X utf8 bench/label/dump_schemas.py --clone <agentdyn checkout> --suites shopping,github,dailylife --out docs/labels/agentdyn-schemas.json
+
+AgentDyn is a fork of AgentDojo with three new suites, and the same layout, so the same reading works on its tools.
 """
 import argparse
 import ast
 import json
 import pathlib
 import re
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+import shared  # noqa: E402
 
 SUITES = ("banking", "slack", "travel", "workspace")
 PARAM = re.compile(r"^\s*:param\s+(\w+):\s*(.*)$")
@@ -66,33 +73,35 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--clone", required=True, type=pathlib.Path)
     parser.add_argument("--out", required=True, type=pathlib.Path)
+    parser.add_argument("--suites", default=",".join(SUITES), help="comma-separated suite names")
     options = parser.parse_args()
+    suites = tuple(options.suites.split(","))
     base = options.clone / "src" / "agentdojo" / "default_suites" / "v1"
-    functions, enums = {}, {}
-    trees = [ast.parse(path.read_text(encoding="utf-8")) for path in sorted((base / "tools").glob("*.py"))]
-    for tree in trees:
-        enums.update(enum_values(tree))
-    for tree in trees:
-        for node in tree.body:
-            if isinstance(node, ast.FunctionDef):
-                if node.name in functions and describe(functions[node.name], enums) != describe(node, enums):
-                    raise SystemExit(f"two different tools are both called {node.name}")
-                functions[node.name] = node
-    tools = {}
-    for suite in SUITES:
-        tree = ast.parse((base / suite / "task_suite.py").read_text(encoding="utf-8"))
-        names = []
-        for node in tree.body:
-            if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "TOOLS":
-                names = [element.id for element in node.value.elts]
-        for name in names:
-            tools.setdefault(name, {**describe(functions[name], enums), "suites": []})["suites"].append(suite)
+    enums = {}
+    for path in sorted((base / "tools").glob("*.py")):
+        enums.update(enum_values(ast.parse(path.read_text(encoding="utf-8"))))
+    uses = {}
+    for suite in suites:
+        for name, function in shared.suite_functions(options.clone, suite).items():
+            uses.setdefault(name, []).append((suite, describe(function, enums)))
+    tools, split = {}, []
+    for name, found in uses.items():
+        if all(described == found[0][1] for _, described in found):
+            tools[name] = {**found[0][1], "suites": [suite for suite, _ in found]}
+        else:
+            # The same name for different tools in different suites. One label couldn't fit both, so each gets its own,
+            # and bench/label/labels.py looks for name@suite before name.
+            split.append(name)
+            for suite, described in found:
+                tools[f"{name}@{suite}"] = {**described, "suites": [suite]}
     options.out.parent.mkdir(parents=True, exist_ok=True)
     options.out.write_text(json.dumps(dict(sorted(tools.items())), indent=1) + "\n", encoding="utf-8", newline="\n")
     print(f"{len(tools)} tools and {sum(len(t['args']) for t in tools.values())} arguments")
-    for suite in SUITES:
+    for suite in suites:
         print(f"  {suite}: {sum(1 for t in tools.values() if suite in t['suites'])} tools")
     print(f"  in more than one suite: {sum(1 for t in tools.values() if len(t['suites']) > 1)}")
+    if split:
+        print(f"  names that mean different tools in different suites, so labelled per suite: {sorted(split)}")
 
 
 if __name__ == "__main__":

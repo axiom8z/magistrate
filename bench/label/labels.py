@@ -159,6 +159,18 @@ def settle(labels):
     return labels
 
 
+def answers_for(merged, suite, names):
+    """Each tool's merged answers for one suite. A name that means different tools in different suites is labelled as
+    name@suite, so that comes first."""
+    found = {}
+    for name in names:
+        answers = merged.get(f"{name}@{suite}", merged.get(name))
+        if answers is None:
+            raise SystemExit(f"{suite}: nobody labelled {name}")
+        found[name] = answers
+    return found
+
+
 def policy_for(arm, tools, draft):
     """The draft keeps its pins and servers. `tools` holds the merged answers. Arms are the ones in DESIGN section 8."""
     if arm == "unreviewed":

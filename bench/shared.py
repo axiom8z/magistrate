@@ -14,6 +14,9 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEDGER = ROOT / "eval" / "ledger.jsonl"
 AGENTDOJO_COMMIT = "089ed468cf3ed0322acc66b0211f26d9d90dbf60"
+# AgentDyn, the blind benchmark: a fork of AgentDojo whose three new suites nobody here has read.
+AGENTDYN_COMMIT = "5353cf7615b135cace8d07c8f12dac53a16b6db3"
+AGENTDYN_SUITES = ("shopping", "github", "dailylife")
 # What scored runs write into the repository. Changing these changes nothing that runs, so they don't make it unclean.
 OUTPUTS = ("eval/ledger.jsonl", "docs/evidence")
 # A run on made-up data, to test the scoring itself. Its output says so, and nothing will record it.
@@ -32,6 +35,42 @@ DECISIONS = {"unknown-tool", "unknown-argument", "session-exposed", "ask-decline
 # A logged call that failed anyway because no such tool or argument exists, or it could not be read. Refusing it takes nothing
 # away from a run, because the same failure reaches the model either way.
 NEVER_RAN = {"unknown-tool", "unknown-argument", "malformed-call"}
+
+
+def suite_functions(clone, suite):
+    """{tool name: its definition} for one suite, read from source as text, in the order of the suite's TOOLS list. Names
+    resolve through the suite file's own imports, because a fork like AgentDyn defines some names in more than one module.
+    A name imported from nowhere falls back to the one module that defines it, and two candidates stop the run."""
+    import ast
+
+    base = pathlib.Path(clone) / "src" / "agentdojo" / "default_suites" / "v1"
+    modules = {path.stem: {node.name: node for node in ast.parse(path.read_text(encoding="utf-8")).body if isinstance(node, ast.FunctionDef)}
+               for path in sorted((base / "tools").glob("*.py"))}
+    tree = ast.parse((base / suite / "task_suite.py").read_text(encoding="utf-8"))
+    imported, names = {}, []
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("agentdojo.default_suites.v1.tools."):
+            stem = node.module.rsplit(".", 1)[1]
+            for alias in node.names:
+                if alias.name in modules.get(stem, {}):
+                    imported[alias.asname or alias.name] = modules[stem][alias.name]
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "TOOLS":
+            if not all(isinstance(element, ast.Name) for element in node.value.elts):
+                raise SystemExit(f"{suite}: TOOLS holds something other than plain names, so it can't be read as text")
+            names = [element.id for element in node.value.elts]
+    local = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    found = {}
+    for name in names:
+        candidates = [module[name] for module in modules.values() if name in module]
+        if name in local:
+            found[name] = local[name]
+        elif name in imported:
+            found[name] = imported[name]
+        elif len(candidates) == 1:
+            found[name] = candidates[0]
+        else:
+            raise SystemExit(f"{suite}: can't tell which {name} the suite uses")
+    return found
 
 
 def git(*args, cwd=ROOT):
@@ -70,9 +109,10 @@ def tree_hash(folder):
     return digest.hexdigest()
 
 
-def checkout_line(clone):
+def checkout_line(clone, benchmark="agentdojo"):
     commit = git("rev-parse", "HEAD", cwd=clone)
-    return f'agentdojo checkout {commit or "unknown"} {"pinned" if commit == AGENTDOJO_COMMIT else "NOT THE PINNED COMMIT"}'
+    pinned = AGENTDYN_COMMIT if benchmark == "agentdyn" else AGENTDOJO_COMMIT
+    return f'{benchmark} checkout {commit or "unknown"} {"pinned" if commit == pinned else "NOT THE PINNED COMMIT"}'
 
 
 def installed_line(clone, installed):
@@ -80,14 +120,14 @@ def installed_line(clone, installed):
     return f'agentdojo installed copy {"matches the checkout" if same else "DIFFERS FROM THE CHECKOUT"}'
 
 
-def header(gateway=None, scanner=None, clone=None, installed=None):
+def header(gateway=None, scanner=None, clone=None, installed=None, benchmark="agentdojo"):
     lines = [repo_line()]
     if gateway:
         lines.append(binary_line("gateway", gateway))
     if scanner:
         lines.append(binary_line("scanner", scanner))
     if clone:
-        lines.append(checkout_line(clone))
+        lines.append(checkout_line(clone, benchmark))
         if installed:
             lines.append(installed_line(clone, installed))
     lines.append(f"python {sys.version.split()[0]}")
@@ -114,8 +154,8 @@ def evidence_problems(lines):
                 found.append(f"the {parts[0]} wasn't built from a clean commit")
             elif commit and parts[3] != commit:
                 found.append(f"the {parts[0]} was built from another commit")
-        elif line.startswith("agentdojo checkout") and "NOT THE PINNED COMMIT" in line:
-            found.append("AgentDojo isn't at the pinned commit")
+        elif line.startswith(("agentdojo checkout", "agentdyn checkout")) and "NOT THE PINNED COMMIT" in line:
+            found.append(f"{line.split()[0]} isn't at the pinned commit")
         elif line.startswith("agentdojo installed") and "DIFFERS" in line:
             found.append("the installed AgentDojo isn't the checkout")
     if not seen:
@@ -208,9 +248,9 @@ def results_line(path):
     return f"results sha256 {file_hash(path)}"
 
 
-def practice_allowed(clone):
-    """A practice run is for made-up logs. On the pinned benchmark it would read the held-back logs and print their scores."""
-    return git("rev-parse", "HEAD", cwd=clone) != AGENTDOJO_COMMIT
+def practice_allowed(clone, benchmark="agentdojo"):
+    """A practice run is for made-up data. On the pinned benchmark it would read what's held back and print its scores."""
+    return git("rev-parse", "HEAD", cwd=clone) != (AGENTDYN_COMMIT if benchmark == "agentdyn" else AGENTDOJO_COMMIT)
 
 
 def run_commit(lines):
