@@ -1,0 +1,637 @@
+{
+ "labellers": [
+  "fresh AI session 3",
+  "fresh AI session 4"
+ ],
+ "tools": {
+  "add_calendar_event_participants": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "event_id": "control",
+    "participants": "control"
+   }
+  },
+  "browse_webpage": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "url": "control"
+   }
+  },
+  "cancel_calendar_event": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "event_id": "control"
+   }
+  },
+  "cart_add_product": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {
+    "product_id": "control",
+    "quantity": "quantity"
+   }
+  },
+  "cart_remove_product": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {
+    "product_id": "control"
+   }
+  },
+  "cart_total": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "checkout_selected_cart": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "discount_code": "control",
+    "product_ids": "control"
+   }
+  },
+  "clear_cart": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {}
+  },
+  "copy_node": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "destination_path": "control",
+    "source_path": "control"
+   }
+  },
+  "create_calendar_event": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "description": "content",
+    "end_time": "date",
+    "location": "control",
+    "participants": "control",
+    "start_time": "date",
+    "title": "content"
+   }
+  },
+  "create_dir": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {
+    "path": "control"
+   }
+  },
+  "create_file": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "content": "content",
+    "path": "control"
+   }
+  },
+  "delete_email": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "email_id": "control"
+   }
+  },
+  "delete_node": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "path": "control"
+   }
+  },
+  "download_file_through_id": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "file_id": "control",
+    "save_dir": "control"
+   }
+  },
+  "download_file_through_url": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "save_dir": "control",
+    "url": "control"
+   }
+  },
+  "get_balance@dailylife": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_balance@shopping": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_current_day": {
+   "outsiders_write_output": "no",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_day_calendar_events": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_github_account_user_information": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_github_linked_unread_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_github_repository_information": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_invoice": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_logged_in_github_user_information": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "yes",
+   "args": {}
+  },
+  "get_received_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_sent_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_shopping_account_user_information": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "yes",
+   "args": {}
+  },
+  "get_shopping_linked_received_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_shopping_linked_unread_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {}
+  },
+  "get_unread_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {}
+  },
+  "git_add_ssh_key": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "ssh_key": "credential"
+   }
+  },
+  "git_clone": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "local_dir_path": "control",
+    "repo_name": "control"
+   }
+  },
+  "git_create_repo": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {
+    "repo_name": "control"
+   }
+  },
+  "git_delete_repo": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "repo_name": "control"
+   }
+  },
+  "git_delete_ssh_key": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {
+    "ssh_key": "credential"
+   }
+  },
+  "git_get_linked_ssh_keys": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "yes",
+   "args": {}
+  },
+  "git_invite_collaborators": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "collaborator_email": "control",
+    "repo_name": "control"
+   }
+  },
+  "git_issue": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "comment_body": "content",
+    "repo_name": "control",
+    "title": "content"
+   }
+  },
+  "git_pull": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "local_path": "control",
+    "overwrite_local": "boolean",
+    "repo_name": "control"
+   }
+  },
+  "git_push": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "force": "boolean",
+    "local_path": "control"
+   }
+  },
+  "git_star": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {
+    "repo_name": "control"
+   }
+  },
+  "git_transfer_repo_ownership": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "new_owner_email": "control",
+    "new_owner_username": "control",
+    "repo_name": "control"
+   }
+  },
+  "git_unstar": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {
+    "repo_name": "control"
+   }
+  },
+  "input_to_webpage@dailylife": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "input_ids": "control",
+    "input_values": "credential",
+    "url": "control"
+   }
+  },
+  "input_to_webpage@github": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "inputs": "credential",
+    "url": "control"
+   }
+  },
+  "input_to_webpage@shopping": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "input_ids": "control",
+    "input_values": "credential",
+    "url": "control"
+   }
+  },
+  "list_directory": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "login_github_account": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "password": "credential",
+    "username": "control"
+   }
+  },
+  "login_shopping_account": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "password": "credential",
+    "username": "control"
+   }
+  },
+  "move_node": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "destination_path": "control",
+    "source_path": "control"
+   }
+  },
+  "read_file": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "refund_order": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "order_id": "control"
+   }
+  },
+  "reschedule_calendar_event": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "event_id": "control",
+    "new_end_time": "date",
+    "new_start_time": "date"
+   }
+  },
+  "search_calendar_events": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "search_emails": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "search_product": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "send_email": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "attachments": "control",
+    "bcc": "control",
+    "body": "content",
+    "cc": "control",
+    "recipients": "control",
+    "subject": "content"
+   }
+  },
+  "send_money@dailylife": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "amount": "quantity",
+    "date": "date",
+    "recipient": "control",
+    "subject": "content"
+   }
+  },
+  "send_money@shopping": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "amount": "quantity",
+    "date": "date",
+    "recipient": "control",
+    "subject": "content"
+   }
+  },
+  "update_github_account_password": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "password": "credential"
+   }
+  },
+  "update_shopping_account_password": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "password": "credential"
+   }
+  },
+  "update_shopping_account_user_info": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "yes",
+   "args": {
+    "address": "control",
+    "bank_account_number": "control",
+    "email": "control",
+    "first_name": "control",
+    "id_number": "control",
+    "last_name": "control",
+    "passport_number": "control",
+    "phone_number": "control"
+   }
+  },
+  "verify_github_account": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "otp": "credential"
+   }
+  },
+  "verify_shopping_account": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "otp": "credential"
+   }
+  },
+  "verify_transaction": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "yes",
+   "undoable": "no",
+   "sensitive": "no",
+   "args": {
+    "otp": "credential"
+   }
+  },
+  "view_available_discounts": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "view_cart": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  },
+  "view_order_history": {
+   "outsiders_write_output": "yes",
+   "changes_or_reaches": "no",
+   "undoable": "yes",
+   "sensitive": "no",
+   "args": {}
+  }
+ },
+ "disagreements": [
+  "clear_cart: outsiders_write_output: no against yes",
+  "create_dir: outsiders_write_output: yes against no",
+  "update_github_account_password: outsiders_write_output: no against yes",
+  "update_shopping_account_password: outsiders_write_output: no against yes",
+  "update_shopping_account_user_info.first_name: control against content",
+  "update_shopping_account_user_info.last_name: control against content",
+  "verify_github_account: outsiders_write_output: no against yes",
+  "verify_shopping_account: outsiders_write_output: no against yes"
+ ],
+ "filled_as_control": []
+}

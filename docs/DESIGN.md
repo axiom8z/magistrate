@@ -93,7 +93,7 @@ One bad tool must not cost every server's tools. All servers share one list, and
 4. Can the action be undone? No or unsure: `irreversible`.
 5. Returns credentials, government IDs or card numbers? `sensitive`: such tokens are registered.
 
-This document names answers, so the author's labels are published as "author labels". A fresh AI session given only rubric and schemas labels too; the stricter answer wins and the disagreement count is published. Forecasts assume `get_webpage` is the only read-named act (`bench/forecast/candidate.py:50`) and only delete, cancel, share and remove are irreversible.
+This document names answers, so labels from its author would have been published as "author labels". The author chose not to label, so two fresh AI sessions given only rubric and schemas labelled each benchmark instead, and no person labelled ([how](labels/README.md)); the stricter answer wins and the disagreement count is published. Forecasts assume `get_webpage` is the only read-named act (`bench/forecast/candidate.py:50`) and only delete, cancel, share and remove are irreversible.
 
 ```json
 {"mode":"value","bound_ids":true,"asks_per_session":5,"trusted_values":[],
@@ -171,7 +171,7 @@ harness (client) -> magistrate.exe -> relay.py -> socket -> harness (tool host) 
 
 **Adaptive, after F2.** No outside attacker tried. The budget is far below [The Attacker Moves Second](https://arxiv.org/abs/2510.09023) (32 sessions per sample; 500+ humans beat every challenge) and [CAISI](https://www.nist.gov/news-events/news/2025/01/technical-blog-strengthening-ai-agent-hijacking-evaluations) (25 attempts took ASR from 57% to 80%), so claim only "not broken at this budget".
 - Perfect-hijack round, no model: per goal, a fresh session with source and policy writes the best call sequence; `bench/reach.py` tries every prompt word in every lookup. Reachability prints per goal and user task. Forecast: 39 of 40 workspace prompts hold a word binding some file, 23 of 26 files, not file 13 (`bench/forecast/bypass_revised.py`).
-- A fresh AI session and the author (three classes by hand), both labelled defenders. A rate prints for all ten families: rewrites; prompt-value reuse; carriers; fragmentation; state; parsers; approval; agent data injection; bound-ID misuse; amounts under the ceiling.
+- A fresh AI session, labelled a defender. The author chose not to attack by hand, so no person does. A rate prints for all ten families: rewrites; prompt-value reuse; carriers; fragmentation; state; parsers; approval; agent data injection; bound-ID misuse; amounts under the ceiling.
 - A `BaseAttack` explaining the gate, 30 pairs on qwen. No mutator: against a deterministic gate it mostly tests qwen.
 
 **Baselines:** the defended `runs/gpt-4o-2024-05-13-*` logs. Never "better than" CaMeL, FIDES or Progent.

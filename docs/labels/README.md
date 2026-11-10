@@ -38,3 +38,15 @@ The merged labels are stricter than the ones the forecasts assumed:
 | Tools labelled sensitive | 1 | 5 |
 
 Both sessions labelled `get_unread_emails` as acting, because it marks emails as read, and `get_webpage` too, because it sends the URL to whoever runs the site. Most acting tools came out as impossible to undo, because their schemas don't say, and "unsure" counts as no. An ID found by a lookup can't be used on an action that can't be undone, so these labels will cost normal tasks, and the first score will show how much. Both sessions named the same wording as hard to apply: who counts as an outsider when a business sets a value, and what an acting tool returns when its schema doesn't say. Their reports are summarized here, and the rubric stayed as it was frozen.
+
+**AgentDyn.** The two sessions disagreed on 8 answers: 6 on whether outsiders can write a tool's output, and 2 on an argument's role, where one gave a shopping profile's `first_name` and `last_name` the role `control` and the other `content`. Each disagreement went to the stricter side. Every acting tool's argument had a role from at least one of them, so nothing had to be filled in. They answered "unsure" 23 and 21 times, and for each of them 16 of those were on whether an action can be undone.
+
+| | Merged labels |
+|---|---|
+| Entries | 69, 7 of them for one suite's version of a tool |
+| Entries that act | 48 |
+| Acting entries that can't be undone | 41 |
+| Entries whose output is trusted | 1 |
+| Entries labelled sensitive | 4 |
+
+The rubric counts the businesses and services behind a tool as outsiders, so both sessions said outsiders can write nearly every tool's output, even a fixed confirmation. Only `get_current_day` came out trusted. As with AgentDojo, both labelled the email reads that mark mail as read as acting, four of them here. Both gave the same 12 arguments the role `credential`, which only the user's prompt can fill: the passwords, the one-time codes, the SSH keys and the values typed into web forms. Both said the rubric doesn't say whether `credential` or `control` is the stricter role, and both took `credential`. The rubric stayed as it was frozen.

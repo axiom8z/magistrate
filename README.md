@@ -8,7 +8,9 @@ This is value matching, which is a heuristic and not a guarantee. [The design](d
 
 ## Status
 
-**Under construction: milestones 1 to 6 of 12.** The gateway is built and tested. The evaluation is not finished, and every number below is a development number.
+**Under construction: milestones 1 to 6 of 12 are done, and milestone 7's labels are written and frozen.** The gateway is built and tested. The evaluation is not finished, and every number below is a development number.
+
+The labels the first scores will use were written after the code was frozen, by fresh AI sessions that saw only a rubric and the tools' schemas. No person labelled. [How they were made](docs/labels/README.md).
 
 The project was called SaysWho until 2026-11-04. Older commits and some raw outputs still use that name.
 
