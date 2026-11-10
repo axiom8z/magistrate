@@ -2,6 +2,8 @@
 
 This page is frozen with the F1 tag, before the data it scores gets opened. It says what each first score is, the exact command that makes it, and the line it can fail. [DESIGN section 8](../docs/DESIGN.md#8-evaluation-plan) has the reasoning. Each first score runs once and stays on record, whatever it says. Anything measured on the same data afterwards gets a `post-hoc` label.
 
+One part of this page changed after F1. The milestone 9 entry was filled in at `b5415ce`, before any AgentDyn tool was labelled or any of its data opened. It kept F1's lines for AgentDyn and added the pinned commit, the commands, the denominator, and what happens to pairs with no ground-truth calls. Otherwise the harness changed between F1 and F2 only to run AgentDyn and to give a local model's cases a time limit of their own. No rule, no other failure line and nothing in how AgentDojo is scored changed, and F2's code rebuilds F1's `docs/labels/schemas.json` byte for byte. F2 freezes this page as it stands.
+
 ## Frozen at F1
 
 | What | Where |
