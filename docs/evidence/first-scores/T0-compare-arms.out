@@ -1,0 +1,6 @@
+repo commit 69b0ea5cd72e5c353748a1e0a15044cb47ef8f7a clean
+python 3.14.6
+input T0-value.jsonl sha256 4cd5e0e375120fad3cc11b48671b3e47b487939ae1ae72e3eb416f4d8d68a838
+input T0-session.jsonl sha256 6ee1eb87a9a6876f5d6899e5dfa29b27f938d1107e9f08fa495eeb6b15970222
+value keeps 395/701 = 56.34%, session keeps 302/701 = 43.08%
+FAILURE LINE, value under 10 points above session: not crossed

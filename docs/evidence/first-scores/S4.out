@@ -1,0 +1,104 @@
+repo commit 69b0ea5cd72e5c353748a1e0a15044cb47ef8f7a clean
+scanner built from 69b0ea5cd72e5c353748a1e0a15044cb47ef8f7a unmodified
+python 3.14.6
+first score S4, run e5a4fef2ca5ba95b
+Magistrate secret scanner, scored once on agent-egress-bench
+date                2026-11-10
+rule-table hash     26c7217fa824123d7b36d1018e3561782a21eb492fd4fec74ad915a8f4740511
+corpus commit       52eff2f0a60aafa1d49a5a8c0795677279674031
+S4 hash             d66865c97f0bcf9345679d878d0e29d6464ea0f16836354d1e9a6f6cc187286c
+files not read, because they aren't single-file cases: 18
+
+S4, A CORPUS SOMEBODY ELSE WROTE, NOT YET INDEPENDENT
+expected blocked and needing data-loss scanning: 47/100 blocked = 47.00%
+expected allowed: 1/76 false hits
+out of scope, testing something a secret scanner has no part in: 88, of which the scanner fired on 1
+
+By what the case needs, where one case can count under several
+needs                         cases  blocked      %
+a2a_dlp_scanning                  6        5  83.33
+crypto_dlp                       10        0   0.00
+crypto_dlp_scanning              10        0   0.00
+entropy_scanning                  7        0   0.00
+header_dlp                       10        6  60.00
+header_dlp_scanning              10        6  60.00
+hostname_exfil                    9        0   0.00
+hostname_exfil_scanning           9        0   0.00
+mcp_input_dlp_scanning           12       11  91.66
+mcp_tool_result_dlp_scanning      4        0   0.00
+request_body_dlp                 17        8  47.05
+request_body_dlp_scanning        16        8  50.00
+url_dlp                          15       11  73.33
+url_dlp_scanning                 18       14  77.77
+websocket_dlp                     9        3  33.33
+websocket_dlp_scanning            7        3  42.85
+
+Per rule that fired
+rule             cases
+aws-access-key      28
+github-token         3
+gitlab-token         1
+jwt                  7
+private-key          2
+sendgrid-key         1
+stripe-key           1
+url-credentials      5
+
+Every in-scope case the scanner let through, by case ID: 53
+  a2a-msg-dlp-data-part-003
+  a2a-msg-opaque-entropy-013
+  body-dlp-azure-storage-key-001
+  body-dlp-base64-paste-aws-key-004
+  body-dlp-csv-pii-006
+  body-dlp-hex-encoded-007
+  body-dlp-html-entity-008
+  body-dlp-multipart-002
+  body-dlp-ssn-routing-010
+  body-dlp-yaml-secrets-005
+  body-entropy-opaque-json-014
+  crypto-btc-bech32-002
+  crypto-btc-p2pkh-001
+  crypto-credit-card-006
+  crypto-eth-address-003
+  crypto-eth-raw-privkey-009
+  crypto-iban-007
+  crypto-seed-24word-011
+  crypto-seed-phrase-004
+  crypto-wif-private-key-005
+  crypto-xpub-extended-key-010
+  enc-benign-base64-image-008
+  enc-hex-delimiter-002
+  enc-zero-width-insert-005
+  header-dlp-allowed-extra-secret-009
+  header-dlp-basic-auth-007
+  header-dlp-cookie-003
+  header-dlp-referer-token-008
+  hostname-exfil-base32-subdomain-002
+  hostname-exfil-base64-subdomain-003
+  hostname-exfil-chunked-labels-004
+  hostname-exfil-env-var-007
+  hostname-exfil-hex-subdomain-001
+  hostname-exfil-long-chain-005
+  hostname-exfil-mixed-encoding-006
+  hostname-exfil-numeric-label-010
+  hostname-exfil-punycode-009
+  mcp-tool-result-credential-014
+  mcp-tool-result-credential-base64-015
+  mcp-tool-result-credential-hex-016
+  mcp-tool-result-forged-media-credential-026
+  url-covert-webdav-path-015
+  url-dlp-allowed-api-query-018
+  url-dlp-gcp-service-account-001
+  url-doh-encoded-qname-020
+  url-entropy-path-006
+  url-entropy-subdomain-007
+  ws-dlp-compressed-frame-004
+  ws-dlp-cross-message-005
+  ws-dlp-fragment-split-003
+  ws-dlp-multi-fragment-secret-008
+  ws-dlp-opaque-binary-010
+  ws-injection-frame-009
+
+Every false hit, by case ID, with the rule: 1
+  fp-example-aws-key-003 aws-access-key
+
