@@ -4,6 +4,8 @@ This page is frozen with the F1 tag, before the data it scores gets opened. It s
 
 One part of this page changed after F1. The milestone 9 entry was filled in at `b5415ce`, before any AgentDyn tool was labelled or any of its data opened. It kept F1's lines for AgentDyn and added the pinned commit, the commands, the denominator, and what happens to pairs with no ground-truth calls. Otherwise the harness changed between F1 and F2 only to run AgentDyn and to give a local model's cases a time limit of their own. No rule, no other failure line and nothing in how AgentDojo is scored changed, and F2's code rebuilds F1's `docs/labels/schemas.json` byte for byte. F2 freezes this page as it stands.
 
+After F2, one part of the harness changed, before any AgentDyn case ran. The first try at T4-none stopped while building its cases, before its started line, so it spent nothing: AgentDyn's copy of AgentDojo's model table has no `openai-compatible` entry, and the attack needs one to name the model. `bench/harness/t1.py` now puts AgentDojo's own entry back for the run, so the attack calls the model "AI assistant" on both benchmarks, as in T1. AgentDojo already has that entry, so nothing changed there. Before T4 ran again, the harness was tried as practice with AgentDyn installed, on AgentDyn's copies of AgentDojo's four suites. Its injected text matched AgentDojo's in all 1,046 cases, and its results files had the same hashes as the first scores T1-none and T1-value. T4 runs from the commit that made this change, with binaries built from it.
+
 ## Frozen at F1
 
 | What | Where |

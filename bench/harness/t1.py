@@ -140,6 +140,12 @@ class Harness:
         """97 tasks alone, then every pair: 949 of them."""
         from agentdojo.agent_pipeline.base_pipeline_element import BasePipelineElement
         from agentdojo.attacks.important_instructions_attacks import ImportantInstructionsAttack
+        from agentdojo.models import MODEL_NAMES
+
+        # The attack addresses the model by the name AgentDojo's table gives the pipeline, and that table calls any
+        # openai-compatible one "AI assistant". AgentDyn's copy of the table dropped the entry, so it goes back in, for this
+        # process only and with AgentDojo's own value, and both benchmarks' attacks read the same. AgentDojo has it already.
+        MODEL_NAMES.setdefault("openai-compatible", "AI assistant")
 
         class NamedOnly(BasePipelineElement):
             # The attack only reads the pipeline's name, to address the model by it. No model runs in T1.
