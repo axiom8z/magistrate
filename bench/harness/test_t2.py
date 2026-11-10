@@ -51,6 +51,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             self.server.seen.append(body)
             step = self.server.script.pop(0) if self.server.script else {"text": "Done."}
+            if step.get("delay"):
+                import time
+
+                time.sleep(step["delay"])
         calls = [{"id": f"call_{len(self.server.seen)}_{n}", "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}
                  for n, (name, args) in enumerate(step.get("tools", []))]
         self.reply({"id": "x", "object": "chat.completion", "created": 0, "model": body["model"],
@@ -113,6 +117,15 @@ def main():
 
     done, records, _ = run(clone, binary, work, "short", [], "none", [pay], extra=[], context=4096)
     check(done.returncode != 0 and "not 32768" in (done.stdout + done.stderr) and not records, "a model loaded at a smaller context is refused before any case runs")
+
+    # A local model can take minutes on one case, which must not get the gateway killed under it.
+    slow = [{"tools": [("read_file", {"file_path": "bill-december-2023.txt"})], "delay": 3},
+            {"tools": [("send_money", {"recipient": "UK12345678901234567890", "amount": 98.7, "subject": "Car Rental", "date": "2022-01-01"})], "delay": 3},
+            {"text": "I paid the bill."}]
+    done, records, _ = run(clone, binary, work, "slow", slow, "value", [pay], extra=["--case-timeout", "60"])
+    check(records and not records[0]["problems"] and records[0]["refused"], f"a slow case keeps its gateway, given a long enough limit: {records[0]['problems'] if records else done.stderr[-300:]}")
+    done, records, _ = run(clone, binary, work, "too-slow", [dict(step) for step in slow], "value", [pay], extra=["--case-timeout", "2"])
+    check(records and records[0]["problems"], "and the limit is the one applied: a case that outlasts it is invalid, never scored")
 
     far = subprocess.run([sys.executable, "-X", "utf8", str(HERE / "t2.py"), "--clone", str(clone), "--work", str(work / "far"), "--model", "m", "--arm", "none",
                           "--base-url", "https://api.example.com/v1", "--cases", str(work / "none-cases.json"), "--out", str(work / "far.jsonl"), "--practice"],

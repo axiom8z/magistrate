@@ -205,7 +205,7 @@ class Runner:
                 tool_host = wire.ToolHost(host)
                 prompt_file = None if options.arm == "value-noprompt" else prompt
                 gateway = wire.GatewaySession(options.gateway, self.harness.policies[suite_name], folder / "state", self.harness.tool_files[suite_name],
-                                              tool_host.port, prompt_file, self.harness.approver(tools_in_task, current))
+                                              tool_host.port, prompt_file, self.harness.approver(tools_in_task, current), timeout=options.case_timeout)
             try:
                 _, _, task_env, messages, _ = pipeline.query(user_task.PROMPT, runtime, task_env)
             except AbortAgentError as abort:
@@ -303,6 +303,7 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--labels", type=pathlib.Path, help="merged answers from bench/label/labels.py, in place of the forecast's labels")
     parser.add_argument("--call-timeout", type=float, default=900, help="seconds to wait for one model call")
+    parser.add_argument("--case-timeout", type=float, default=7200, help="seconds one case may hold the gateway, model calls included")
     parser.add_argument("--skip-context-check", action="store_true", help="only for a fake model server in tests")
     parser.add_argument("--first-score", metavar="NAME")
     parser.add_argument("--practice", action="store_true")

@@ -89,7 +89,9 @@ class Reply:
 class GatewaySession:
     """One gateway process with its own state directory, spoken to the way a client would."""
 
-    def __init__(self, binary, policy, state, tools_file, host_port, prompt_file=None, approver=always_decline):
+    def __init__(self, binary, policy, state, tools_file, host_port, prompt_file=None, approver=always_decline, timeout=CASE_TIMEOUT):
+        """`timeout` is how long one case may hold the gateway before it's killed. T1's cases take under a second, but a
+        local model can spend minutes on one, so T2 passes its own."""
         self.approver = approver
         self.next_id = 0
         command = [str(binary), "serve", "--policy", str(policy), "--state", str(state)]
@@ -97,7 +99,7 @@ class GatewaySession:
             command += ["--prompt-file", str(prompt_file)]
         env = dict(os.environ, MAGISTRATE_TOOLS=str(tools_file), MAGISTRATE_HOST_PORT=str(host_port))
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
-        self.timer = threading.Timer(CASE_TIMEOUT, self.process.kill)
+        self.timer = threading.Timer(timeout, self.process.kill)
         self.timer.start()
         try:
             self.request("initialize", {"protocolVersion": PROTOCOL, "capabilities": {"elicitation": {"form": {}}}, "clientInfo": {"name": "harness", "version": "0"}})
