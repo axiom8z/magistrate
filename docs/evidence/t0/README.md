@@ -4,7 +4,7 @@
 
 These are **development numbers, benchmark-informed**. The rules were chosen by looking at these same tasks, and the six models here are the ones opened during design, so they show the binary does what the design said it would, and not how it does on anything new. A log also can't show what an agent would have done after a block. Kept counts any interruption as a break. The labels are the ones the forecasts assumed, in policy form. They are not the author labels of milestone 7.
 
-Commit `c3b5821`, AgentDojo checkout `089ed468`, attack `important_instructions`, approver `deny`.
+Commit `563b974`, AgentDojo checkout `089ed468`, attack `important_instructions`, approver `deny`. Each `.out` file starts with that account of what ran. Every number is unchanged, line for line, since these arms were first run at `c3b5821`. None of the six models' logs records a failed model API call.
 
 | Arm | Tasks kept | Forecast | Logged attacks interrupted | Forecast |
 |---|---|---|---|---|

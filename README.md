@@ -21,7 +21,7 @@ The design set lines this project could fail before anything was measured, and t
 | Known-format secret recall under 95% | 89.81% (30,608/34,080) on the first score; 99.98% post-hoc | **Crossed on the first score** |
 | Over 1 false hit per 1,000 strings | 1.1691 (45/38,490) on the first score; 0.0259-0.0519 post-hoc | **Crossed on the first score** |
 | Added p99 above 5 ms at 1 KB and 500 requests a second | 1.297 ms at worst | Not crossed |
-| Binary and forecast over 5 points apart without a written cause | 1,271 of 1,272 logs agree | Not crossed |
+| Binary and forecast over 5 points apart without a written cause | 1,271 of 1,272 logs agree, and 20 of the 609 pairs the forecast covered let the attack through, against its 21. Each difference has its cause written | Not crossed |
 
 The rest of the lines need runs that haven't happened yet, including every line on attacks against new models.
 
@@ -48,13 +48,15 @@ These replay AgentDojo's published logs through the real binary, with every ques
 
 So the cost is real: with nobody to approve anything, about 40% of normal tasks hit a refusal, and most of slack's do.
 
-### Every attack pair, with no rules on
+### Every attack pair, from the benchmark's own correct calls
 
-This replays the benchmark's own correct calls for all 97 tasks and 949 attack pairs, with a perfectly obedient agent and no model. Going through the real binary in `pass` mode gave the same result as going around it, on all 1,046 cases. With no defense, the attack wins 596 of the 609 pairs that can be scored so far. That's the floor the rules get measured against, and they haven't been measured against it yet. [Details and caveats](docs/evidence/t1/README.md).
+This replays the benchmark's own correct calls for all 97 tasks and 949 attack pairs, with a perfectly obedient agent and no model. Going through the real binary in `pass` mode gave the same results as going around it, on all 1,046 cases. With no defense, the attack wins 905 of the 929 pairs that have calls to replay.
+
+With the rules on and nobody to approve anything, the attack won 20 of the 880 pairs it wins undefended and that reached the agent. All 20 are one travel attack the design concedes. 62 of 97 normal tasks still passed. These are development numbers, on the labels the forecasts assumed, and the design forecast 21 such wins. [Details and caveats](docs/evidence/t1/README.md).
 
 **Delay:** the gateway added 1.235-1.297 ms at p99 for an action and 0.243-0.282 ms for a read, at 1 KB and 500 requests a second, on one desktop. [Details](docs/evidence/delay/README.md).
 
-**Not measured yet:** the same replay with the rules on, the models not yet opened, a live model, a blind benchmark, attacks written after the rules were frozen, and a person answering the approval dialog in the real client. [The plan](docs/DESIGN.md#8-evaluation-plan) says what each one will be held to, including the lines it could fail.
+**Not measured yet:** the same replay on labels written after the freeze, the models not yet opened, a live model, a blind benchmark, attacks written after the rules were frozen, and a person answering the approval dialog in the real client. [The plan](docs/DESIGN.md#8-evaluation-plan) says what each one will be held to, including the lines it could fail.
 
 ## Try it
 
