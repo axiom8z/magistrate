@@ -235,4 +235,4 @@ The docstring in `s4.py` says which cases count, fixed from that project's docum
   Any of these the draw picks stays in it, and the evidence says which.
 
   **Milestone 9's fallback** isn't run, decided after T4's first scores. T4's verdict is already fixed by its utility line, and its attack line replayed 160 pairs, all in dailylife. Shopping's and github's attacks stay untested, and the evidence says so.
-- **Milestone 11, new attacks after the freeze:** any state, parser or approval bypass crosses a line, and so does any route the design hasn't conceded. Carrier forms the matcher claims must pass at most 1% of the time.
+- **Milestone 11, new attacks after the freeze:** any state, parser or approval bypass crosses a line, and so does any route the design hasn't conceded. Carrier forms the matcher claims must pass at most 1% of the time. Milestone 11 isn't run. The owner decided on 2026-11-11 to leave it out, before any of it was built and before any T2 batch ran. So its lines print as not run, and so do the 40 new-task and 30 `BaseAttack` pairs left to it.
