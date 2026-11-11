@@ -95,6 +95,34 @@ def main():
         check(labels.count("started") == 4 and labels.count("abandoned") == 1, "every start and every abandoned run stays on record")
         check(shared.already_scored(path, "S3") and not shared.already_scored(path, "S4"), "a set counts as scored only once its score is recorded")
 
+        # A run that finished can't be abandoned for what it showed, and only what it finished with can be recorded.
+        done = shared.start_first_score("T2-goals", CLEAN, path).split()[-1]
+        shared.mark_finished("T2-goals", done, "a" * 64, path)
+        check(refused(lambda: shared.abandon(path, "T2-goals", done, "didn't like it", "2026-11-10")), "a finished run can't be abandoned")
+        check(refused(lambda: shared.mark_finished("T2-goals", done, "b" * 64, path)), "and finishes only once")
+        check(refused(lambda: shared.finish_first_score("T2-goals", done, {"set_hash": "z", "data_hash": "b" * 64}, path)),
+              "data other than what it finished with can't be recorded as its score")
+        shared.finish_first_score("T2-goals", done, {"set_hash": "z", "data_hash": "a" * 64}, path)
+        check(shared.already_scored(path, "T2-goals"), "what it finished with can")
+        check(refused(lambda: shared.mark_finished("T2-ungated", "0123456789abcdef", "a" * 64, path)), "only a run that started can finish")
+
+        # A run that died is kept, with what it left, and only that one run can be finished by a retry.
+        died = shared.start_first_score("T2-ungated", CLEAN, path).split()[-1]
+        check(shared.dead_run(path, "T2-ungated") is None, "a run that started hasn't died until it's abandoned")
+        check(refused(lambda: shared.abandon(path, "T2-ungated", died, "made up", "2026-11-10", partial_hash="c" * 64)),
+              "a run that wrote no progress line can't be abandoned with results")
+        for n, digest in ((1, "c" * 64), (2, "d" * 64)):
+            shared.progress("T2-ungated", died, n, digest, path)
+        check(refused(lambda: shared.abandon(path, "T2-ungated", died, "made up", "2026-11-10", partial_hash="e" * 64)),
+              "nor with data no progress line of it vouches for")
+        shared.abandon(path, "T2-ungated", died, "the PC shut down, and lost its last case", "2026-11-10", partial_hash="c" * 64)
+        dead_line = shared.dead_run(path, "T2-ungated")
+        check(dead_line and dead_line["partial_hash"] == "c" * 64 and dead_line["cases"] == 1 and dead_line["claimed"] == 2,
+              "an abandoned run keeps the hash of what it left, and how many cases it had claimed, so a lost one counts as died")
+        check(refused(lambda: shared.progress("T2-ungated", died, 3, "f" * 64, path)), "and a run once abandoned can't go on")
+        shared.start_first_score("T2-ungated", CLEAN, path)
+        check(shared.dead_run(path, "T2-ungated") is None, "a set started twice has no one dead run for a retry to finish")
+
     print(f"{len(failures)} failed")
     return 1 if failures else 0
 

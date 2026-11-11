@@ -16,6 +16,9 @@ LEDGER = ROOT / "eval" / "ledger.jsonl"
 AGENTDOJO_COMMIT = "089ed468cf3ed0322acc66b0211f26d9d90dbf60"
 # AgentDyn, the blind benchmark: a fork of AgentDojo whose three new suites nobody here has read.
 AGENTDYN_COMMIT = "5353cf7615b135cace8d07c8f12dac53a16b6db3"
+# tree_hash of the pinned AgentDojo's src/agentdojo, its 111 .py and .yaml files, so a run can check what's installed.
+AGENTDOJO_TREE = "74f17c2ea879d2dc8319abcf54f545270bd578d919068b05aff18b0bf6160240"
+EMPTY_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 AGENTDYN_SUITES = ("shopping", "github", "dailylife")
 # What scored runs write into the repository. Changing these changes nothing that runs, so they don't make it unclean.
 OUTPUTS = ("eval/ledger.jsonl", "docs/evidence")
@@ -183,6 +186,9 @@ def append(path, entry):
     pathlib.Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8", newline="\n") as ledger:
         ledger.write(json.dumps(entry, separators=(",", ":")) + "\n")
+        # On disk before anything goes on, because this PC has shut down under load before.
+        ledger.flush()
+        os.fsync(ledger.fileno())
 
 
 def refuse_unless_first_score(name, facts, ledger=LEDGER):
@@ -217,23 +223,90 @@ def first_score_of(lines):
 
 
 def finish_first_score(name, token, entry, ledger=LEDGER):
-    """Records the score of the run that started with this token, once. Any other run is refused."""
+    """Records the score of the run that started with this token, once. Any other run is refused, and so is data that isn't
+    what the run had when it said it finished."""
     if not any(e["set"] == name and e.get("label") == "started" and e.get("token") == token for e in entries(ledger)):
         sys.exit(f"no run started as {name} with this output's token, so it can't be that first score")
     if any(e["set"] == name and e.get("label") == "abandoned" and e.get("token") == token for e in entries(ledger)):
         sys.exit("that run was recorded as abandoned")
     if already_scored(ledger, name):
         sys.exit(f"{name} already has a first score")
+    finished = finished_hash(ledger, name, token)
+    if finished is not None and entry.get("data_hash") != finished:
+        sys.exit("this data isn't what the run had when it finished")
     append(ledger, dict(entry, set=name, token=token))
 
 
-def abandon(path, name, token, why, date):
-    """Records that a started run produced nothing that stands, and why, so that another can start. Never quietly."""
+def mark_finished(name, token, data_hash, ledger=LEDGER):
+    """Written by a run the moment its last case ends, before it prints anything about how it went. A run that finished
+    can't be abandoned afterwards: its results stand, whatever they say."""
+    if not any(e["set"] == name and e.get("label") == "started" and e.get("token") == token for e in entries(ledger)):
+        sys.exit(f"no run started as {name} with this token")
+    if any(e["set"] == name and e.get("token") == token and e.get("label") in ("finished", "abandoned") for e in entries(ledger)):
+        sys.exit("that run already finished or was abandoned")
+    append(ledger, {"set": name, "label": "finished", "token": token, "data_hash": data_hash})
+
+
+def finished_hash(ledger, name, token):
+    for e in entries(ledger):
+        if e["set"] == name and e.get("label") == "finished" and e.get("token") == token:
+            return e["data_hash"]
+    return None
+
+
+def progress(name, token, cases, data_hash, ledger=LEDGER):
+    """Written by a run after each case it finishes: how many, and the hash of its results so far. So what a run that dies
+    leaves behind is on record, and can't later be trimmed, edited or dropped. A run recorded as abandoned stops here."""
+    if any(e["set"] == name and e.get("token") == token and e.get("label") == "abandoned" for e in entries(ledger)):
+        sys.exit(f"{name} run {token} was recorded as abandoned, so it stops here")
+    append(ledger, {"set": name, "label": "progress", "token": token, "cases": cases, "data_hash": data_hash})
+
+
+def last_progress(ledger, name, token):
+    found = None
+    for e in entries(ledger):
+        if e["set"] == name and e.get("label") == "progress" and e.get("token") == token:
+            found = e
+    return found
+
+
+def abandon(path, name, token, why, date, partial_hash=None):
+    """Records that a started run produced nothing that stands, and why, so that another can start. Never quietly, and
+    once. A run that finished can't be abandoned. A run that wrote progress lines is abandoned with the data one of them
+    vouches for, normally its last. An earlier one only serves when a crash lost what came after, and the line still
+    records how many cases the run had claimed, so those count as died and none of them runs again. A run that wrote no
+    progress line left nothing, and is abandoned with nothing."""
     if not any(e["set"] == name and e.get("label") == "started" and e.get("token") == token for e in entries(path)):
         sys.exit(f"no run started as {name} with that token")
     if any(e["set"] == name and e.get("token") == token and "label" not in e for e in entries(path)):
         sys.exit("that run's score is already recorded, so it can't be abandoned")
-    append(path, {"set": name, "label": "abandoned", "token": token, "why": why, "date": date})
+    if finished_hash(path, name, token) is not None:
+        sys.exit("that run finished, so its results stand: record it, don't abandon it")
+    if any(e["set"] == name and e.get("token") == token and e.get("label") == "abandoned" for e in entries(path)):
+        sys.exit("that run is already recorded as abandoned")
+    lines = [e for e in entries(path) if e["set"] == name and e.get("label") == "progress" and e.get("token") == token]
+    entry = {"set": name, "label": "abandoned", "token": token, "why": why, "date": date}
+    if partial_hash in (None, EMPTY_HASH):
+        # Nothing left: everything the run claimed counts as died, so this can't help anyone.
+        entry.update(cases=0, claimed=lines[-1]["cases"] if lines else 0)
+    elif not lines:
+        sys.exit("that run wrote no progress line, so it left nothing, and it's abandoned with nothing")
+    else:
+        vouched = [e for e in lines if e["data_hash"] == partial_hash]
+        if not vouched:
+            sys.exit(f"no progress line of that run vouches for this data; its last says {lines[-1]['cases']} cases with hash {lines[-1]['data_hash'][:12]}")
+        entry.update(partial_hash=partial_hash, cases=vouched[-1]["cases"], claimed=lines[-1]["cases"])
+    append(path, entry)
+
+
+def dead_run(path, name):
+    """The one run that started as `name` and was abandoned without finishing, which a retry may finish. None otherwise."""
+    runs = [e for e in entries(path) if e["set"] == name]
+    started = [e for e in runs if e.get("label") == "started"]
+    abandoned = {e["token"]: e for e in runs if e.get("label") == "abandoned"}
+    if len(started) != 1 or started[0]["token"] not in abandoned:
+        return None
+    return abandoned[started[0]["token"]]
 
 
 def file_hash(path):
