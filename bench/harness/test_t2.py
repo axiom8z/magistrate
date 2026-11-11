@@ -144,6 +144,108 @@ def oracle_cases():
     check(not ask("workspace", "user_task_25", mail, "send_email", dict(email.args, cc=["mark.black-2134@gmail.com"]))[0], "and refuses one copied to someone else")
 
 
+def check_stops(work):
+    """The per-case check and the start check, called directly against a fake server and a fake log: no model is loaded and no
+    socket is opened. Anything that goes wrong in a reading counts as moved, with no exception out of it."""
+    import tempfile
+    import types
+    import urllib.error
+
+    sys.path.insert(0, str(HERE))
+    import t2
+    import t2_plan
+    import test_t2_plan as fixtures
+
+    options = types.SimpleNamespace(first_score="T2-x", base_url=f"{fixtures.FakeServer.BASE}/v1", model=t2_plan.MODEL)
+
+    class Malformed(fixtures.FakeServer):
+        """A server whose reply to one path is something a server never sends."""
+
+        def __init__(self, log, path, reply):
+            super().__init__(log)
+            self.path, self.reply = path, reply
+
+        def __call__(self, url, body=None, timeout=30):
+            if url.removeprefix(self.BASE) == self.path:
+                return self.reply
+            return super().__call__(url, body, timeout)
+
+    class Down(fixtures.FakeServer):
+        def __call__(self, url, body=None, timeout=30):
+            raise urllib.error.URLError("connection refused")
+
+    def scene():
+        """(server, log path, plan, the load's offset and the log's first line) after a start-like first chat."""
+        log = pathlib.Path(tempfile.mkdtemp(dir=work)) / "server.log"
+        log.write_bytes(fixtures.STARTUP)
+        server = fixtures.FakeServer(log)
+        server(server.BASE + "/v1/chat/completions", {})
+        facts = fixtures.faked(server, lambda: t2_plan.server_facts(server.BASE, t2_plan.MODEL, log))
+        plan = {fact: facts[fact] for fact in t2_plan.PINNED_FACTS + t2_plan.LOAD_FACTS}
+        return server, log, plan, facts
+
+    def moved(server, log, plan, facts):
+        return fixtures.faked(server, lambda: t2.pins_moved(options, plan, facts["load_offset"], facts["log_first_line"], log))
+
+    server, log, plan, facts = scene()
+    check(facts["load_problem"] is None and moved(server, log, plan, facts) == [], "the per-case check finds nothing moved when nothing has")
+    server.loaded = False
+    check(moved(server, log, plan, facts) == [], "and a model unloaded with no new block in the log isn't a reason to stop")
+    server, log, plan, facts = scene()
+    server.loaded = False
+    server(server.BASE + "/v1/chat/completions", {})
+    check(moved(server, log, plan, facts) == [], "nor is a reload with the same facts")
+
+    problems = moved(Down(log), log, plan, facts)
+    check(len(problems) == 1 and "couldn't be read" in problems[0] and "URLError" in problems[0], f"a server that is down counts as moved, with the error's type: {problems}")
+    for path, reply in (("/api/tags", []), ("/api/tags", None), ("/api/tags", "x"), ("/api/tags", {"models": None}),
+                        ("/api/ps", {"models": None}), ("/api/version", [])):
+        try:
+            problems = moved(Malformed(log, path, reply), log, plan, facts)
+        except Exception as error:
+            problems = [f"raised {error!r}"]
+        check(len(problems) == 1 and "couldn't be read" in problems[0] and "raised" not in problems[0],
+              f"{path} answering {reply!r} counts as moved, with a reason and no traceback: {problems}")
+
+    server, log, plan, facts = scene()
+    log.write_bytes(fixtures.STARTUP)
+    check(any("rotated" in problem or "isn't in the server's log" in problem for problem in moved(server, log, plan, facts)), "a rotated log counts as moved")
+    server, log, plan, facts = scene()
+    changed = fixtures.edited(fixtures.BLOCK, fixtures.OFFLOADED_LINE, b"load_tensors: offloaded 13/66 layers to GPU\n")
+    with open(log, "ab") as handle:
+        handle.write(changed)
+    check(any("differs in" in problem for problem in moved(server, log, plan, facts)), "and a reload with another layer split")
+    server, log, plan, facts = scene()
+    server.version = "9.9.9"
+    check(any("server_version differs" in problem for problem in moved(server, log, plan, facts)), "and a pinned fact that changed")
+
+    server, log, plan, facts = scene()
+    refusal = lambda changes: t2.start_refusal({**facts, **changes}, plan)
+    check(refusal({}) is None, "the start check refuses nothing when everything matches")
+    check("can't be read" in (refusal({"load_problem": "no load in the log"}) or ""), "it refuses a load that couldn't be read")
+    check("not loaded" in (refusal({"loaded": False}) or ""), "and a model the server says isn't loaded")
+    check("server_version" in (refusal({"server_version": "9.9.9"}) or ""), "and a moved pinned fact")
+    check("gpu_layers" in (refusal({"gpu_layers": "13/66"}) or ""), "and a moved load fact")
+
+    # The check before the chat reads the pins alone: a restarted server's log has no block for the model yet.
+    unloaded = {**facts, **dict.fromkeys(t2_plan.LOAD_FACTS)}
+    check(t2.pre_chat_problems(unloaded, plan) == [], "the plan check passes load facts that are all None when the pins match")
+    problems = t2.pre_chat_problems({**unloaded, "server_version": "9.9.9"}, plan)
+    check(len(problems) == 1 and "server_version" in problems[0], "and refuses a moved pinned fact")
+
+    root = pathlib.Path(tempfile.mkdtemp(dir=work))
+    ledger = root / "ledger.jsonl"
+    ledger.write_text("", encoding="utf-8")
+    absent = t2.supersede_problems_of(root, ledger, {})
+    check(len(absent) == 1 and "can't be read" in absent[0], f"a missing plan 1 is a problem, not an exception: {absent}")
+    (root / "eval" / "t2").mkdir(parents=True)
+    (root / t2_plan.PLAN_1).write_text("{not json", encoding="utf-8")
+    broken = t2.supersede_problems_of(root, ledger, {})
+    check(len(broken) == 1 and "can't be read" in broken[0], f"and so is one that isn't JSON: {broken}")
+    (root / t2_plan.PLAN_1).write_text("[]", encoding="utf-8")
+    check(t2.supersede_problems_of(root, ledger, {}) == [f"{t2_plan.PLAN_1} isn't a JSON object"], "and one that isn't an object")
+
+
 def main():
     if sys.argv[1:] == ["--oracle-only"]:
         # The oracle's checks again, in a process with another hash seed, which orders sets differently.
@@ -307,8 +409,17 @@ def main():
     check("arm none, approver deny, model fake-model" in preview.stdout + skipped.stdout and "input none-cases.json sha256 " in skipped.stdout
           and "case limit 7200 s, call limit 900 s" in skipped.stdout,
           "a run's output says its arm, approver, model, limits, and the hash of its cases, before anything else")
+    kept = work / "existing-work"
+    kept.mkdir()
+    (kept / "keep.txt").write_text("x", encoding="utf-8")
+    existing = subprocess.run([sys.executable, "-X", "utf8", str(HERE / "t2.py"), "--clone", str(clone), "--work", str(kept), "--model", "fake-model", "--base-url", url,
+                               "--arm", "none", "--cases", str(work / "none-cases.json"), "--first-score", "T2-made-up", "--check-plan", "--check-load"],
+                              capture_output=True, text=True, encoding="utf-8", timeout=300)
+    check(existing.returncode != 0 and "has to not exist" in existing.stderr and (kept / "keep.txt").exists(),
+          "--check-load refuses a --work that exists, and the folder survives")
     server.shutdown()
     check(not (work / "refused.jsonl").exists(), "none of these wrote anything")
+    check_stops(work)
 
     print(f"{len(failures)} failed")
     return 1 if failures else 0

@@ -94,6 +94,8 @@ class Scene:
         self.root = parent / name
         shutil.copytree(template, self.root)
         self.repo, self.log, self.expect = self.root / "repo", self.root / "server.log", self.root / "expect.json"
+        # --supersede-record writes only from a branch, and the template sits on main.
+        git(self.repo, "checkout", "-q", "-b", "work")
         self.ledger = self.repo / "eval" / "ledger.jsonl"
         self.plan_path = self.repo / t2_plan.PLAN_2
 
@@ -230,7 +232,7 @@ def committed_state(template, parent, plan_1):
     side = git(repo, "rev-parse", plan_2["code"])
     git(repo, "checkout", "-q", "-b", "side", side)
     stray = commit(repo, "a file the freeze keeps", {"bench/shared.py": "v2\n"})
-    git(repo, "checkout", "-q", "main")
+    git(repo, "checkout", "-q", "work")
     check(problem_with(t2_plan.code_problems(repo, plan_1, {**plan_2, "code": stray}), "bench/shared.py"), "check 4: a code diff that touches another file refuses")
     check(problem_with(t2_plan.code_problems(repo, plan_1, {**plan_2, "code": "main"}), "names no commit"), "and a code that names no commit")
     check(problem_with(t2_plan.code_problems(repo, plan_1, {**plan_2, "code": "1" * 40}), "can't be compared"), "and one git can't resolve")
@@ -317,6 +319,17 @@ def record_command(template, parent):
     altered(lambda p: p["lists"].update(a="9" * 64), "r-check1", "lists isn't plan 1's", "--supersede-record with a plan 2 whose list hashes changed (check 1)")
     altered(lambda p: p["supersedes"].update(commit="5" * 40), "r-check2", "doesn't name the commit that holds plan 1",
             "--supersede-record with a plan 2 that names another commit for plan 1 (check 2)")
+    # A ledger line can't be undone, so it isn't written from main or a detached HEAD, and the same plan 2 passes from a branch.
+    for name, target, what in (("r-main", "main", "main"), ("r-detached", "--detach", "a detached HEAD")):
+        scene = Scene(template, parent, name)
+        digest = scene.with_plan_two()
+        git(scene.repo, "checkout", "-q", *(["main"] if target == "main" else [target]))
+        if target == "main":
+            git(scene.repo, "merge", "-q", "--ff-only", "work")
+        refuses(scene.record(digest), "written only from a branch", scene.snapshot(), scene, f"--supersede-record on {what}")
+    scene = Scene(template, parent, "r-branch")
+    digest = scene.with_plan_two()
+    check(scene.record(digest)[0] is None, "and the same record passes on a branch")
     scene = Scene(template, parent, "r-nothing")
     refuses(scene.record("6" * 64), "holds no eval/t2-plan-2.json", scene.snapshot(), scene, "--supersede-record before plan 2 is committed")
 

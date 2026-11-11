@@ -41,7 +41,6 @@ invalid, and running only the rest. The real model never runs except as a planne
 import argparse
 import collections
 import hashlib
-import http.client
 import json
 import os
 import pathlib
@@ -445,6 +444,9 @@ def main():
     options = parser.parse_args()
     if options.check_load and not options.check_plan:
         parser.error("--check-load goes with --check-plan")
+    if options.check_load and options.work.exists():
+        # The harness deletes a --work that exists, and a check must never delete a folder.
+        parser.error(f"--check-load builds the harness, which deletes an existing --work, so {options.work} has to not exist")
     if options.check_plan and not options.first_score:
         parser.error("--check-plan checks the plan for a --first-score batch")
     if options.check_plan and (options.out or options.practice):
@@ -521,7 +523,11 @@ def main():
         # One tiny call loads the model, so its real context, and how much of it sits in GPU memory, can be read first.
         runner.client.client.chat.completions.create(model=options.model, messages=[{"role": "user", "content": "Reply with OK."}], max_tokens=2)
         print(check_context(options.base_url, options.model))
-        server = t2_plan.server_facts(options.base_url.rsplit("/v1", 1)[0], options.model)
+        try:
+            server = t2_plan.server_facts(options.base_url.rsplit("/v1", 1)[0], options.model)
+        except Exception as error:
+            # Whatever the server sent back, nothing is started over a reading that can't be made: no started line is written.
+            sys.exit(f"the model server's facts can't be read after the first chat ({error!r}), so this can't run as the first score {options.first_score}")
         loaded = f"model loaded with {server['size_vram']} bytes in GPU memory"
         facts.append(loaded)
         print(loaded)
@@ -606,24 +612,38 @@ def start_refusal(server, plan):
     moves with the first chat while the layer split doesn't. What the load fixed is read from the server's log instead."""
     if server["load_problem"] or not server["loaded"]:
         return f"the model's load can't be read: {server['load_problem'] or 'the server says it is not loaded right after a chat'}"
-    moved = [fact for fact in t2_plan.PINNED_FACTS + t2_plan.LOAD_FACTS if server[fact] != plan[fact]]
-    return f"the server's {moved} aren't the plan's" if moved else None
+    moved = fact_problems(server, plan, t2_plan.PINNED_FACTS + t2_plan.LOAD_FACTS)
+    return f"the server's {[fact for fact, _, _ in moved]} aren't the plan's" if moved else None
 
 
-def pins_moved(options, plan, load_offset, log_first):
+def fact_problems(server, plan, facts):
+    """[(fact, the server's value, the plan's)] for each of `facts` that differs."""
+    return [(fact, server.get(fact), plan[fact]) for fact in facts if server.get(fact) != plan[fact]]
+
+
+def pre_chat_problems(server, plan):
+    """Why the server, read before the model is loaded, isn't what the plan pins. Only the pinned facts: after a restart the
+    log holds no block for the model until it loads, so the load facts are compared by the start check, after the first chat."""
+    return [f"the server's {fact} is {seen}, and the plan's is {planned}" for fact, seen, planned in fact_problems(server, plan, t2_plan.PINNED_FACTS)]
+
+
+def pins_moved(options, plan, load_offset, log_first, log=None):
     """Why the model or server no longer is what the plan pins, checked after each case of a first score: the pinned
     facts, and every load in the log since the run started. A model unloaded between cases isn't a reason, and a server
-    or log that can't be read is."""
+    or log that can't be read, or that answers with something this can't read, is. `log` is the log's path, the server's own
+    by default."""
     if not options.first_score:
         return []
     base = options.base_url.rsplit("/v1", 1)[0]
     try:
-        now = t2_plan.server_facts(base, options.model)
+        now = t2_plan.server_facts(base, options.model, log)
         blob = t2_plan.model_blob(base, options.model)
-        problems, _ = t2_plan.scan_blocks(t2_plan.read_log(), blob, {fact: plan[fact] for fact in t2_plan.LOAD_FACTS}, load_offset, log_first)
-    except (OSError, ValueError, http.client.HTTPException) as error:
-        # URLError is an OSError. A server that went down in the middle of a check stops the run as cleanly as one that moved.
-        return [f"the server or its log couldn't be read: {error!r}"]
+        problems, _ = t2_plan.scan_blocks(t2_plan.read_log(log), blob, {fact: plan[fact] for fact in t2_plan.LOAD_FACTS}, load_offset, log_first)
+    except Exception as error:
+        # Any failure counts as moved, and stops the run cleanly, the way a down server does: a reply that isn't what a
+        # server sends (a list, null, a model list that is null) raises AttributeError or TypeError, and a traceback
+        # after a case would leave the run neither stopped by its own check nor finished.
+        return [f"the server or its log couldn't be read: {type(error).__name__}: {error}"]
     return [f"{fact} differs" for fact in t2_plan.PINNED_FACTS if now.get(fact) != plan[fact]] + problems
 
 
@@ -679,9 +699,7 @@ def plan_problems(options, plan, server, wanted):
         found.append(f"the plan runs {base} on arm {row['arm']} with approver {row['approver']}")
     if options.model not in (plan["model"], f"{plan['model']}:latest"):
         found.append(f"the plan's model is {plan['model']}")
-    for fact in t2_plan.PINNED_FACTS + t2_plan.LOAD_FACTS:
-        if server.get(fact) != plan[fact]:
-            found.append(f"the server's {fact} is {server.get(fact)}, and the plan's is {plan[fact]}")
+    found += pre_chat_problems(server, plan)
     if (options.case_timeout, options.call_timeout) != (plan["case_timeout"], plan["call_timeout"]):
         found.append(f"the plan's limits are {plan['case_timeout']} s a case and {plan['call_timeout']} s a call")
     if (not options.labels or options.labels.resolve() != (ROOT / plan["labels"]).resolve()
@@ -708,11 +726,23 @@ def plan_problems(options, plan, server, wanted):
         if stray:
             found.append(f"code changed after the plan's commit: {stray[:5]}")
     # Plan 2 against plan 1, the one commit that holds each, and the ledger only ever added to, at HEAD and at each plan's code.
-    found += t2_plan.supersede_checks(ROOT, shared.LEDGER, json.loads((ROOT / t2_plan.PLAN_1).read_text(encoding="utf-8")), plan)
+    found += supersede_problems_of(ROOT, shared.LEDGER, plan)
     stray = shared.git("status", "--porcelain", "--untracked-files=all", "--", "bench", "cmd", "internal", "test", "go.mod", "go.sum")
     if stray is None or stray:
         found.append(f"files the run could load aren't committed: {(stray or 'git failed').splitlines()[:5]}")
     return found
+
+
+def supersede_problems_of(root, ledger, plan):
+    """Plan 2 against plan 1 and the ledger, checks 1-5: every problem, and a plan 1 that is missing, isn't JSON or isn't an
+    object is one of them, not an exception."""
+    try:
+        plan_1 = json.loads((root / t2_plan.PLAN_1).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        return [f"{t2_plan.PLAN_1} can't be read: {error!r}"]
+    if not isinstance(plan_1, dict):
+        return [f"{t2_plan.PLAN_1} isn't a JSON object"]
+    return t2_plan.supersede_checks(root, ledger, plan_1, plan)
 
 
 def retry_start(plan, name, wanted):

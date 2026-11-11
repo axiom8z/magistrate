@@ -210,6 +210,35 @@ def check_every_load():
           "a CRLF log is scanned by the same lines, and its offsets are bytes")
 
 
+def check_load_config_end():
+    """The configuration ends at the first `slot` line, where the model starts serving: a configuration-looking line logged
+    while it serves isn't part of what the load fixed."""
+    slot = b"slot   load_model: id  0 | task -1 | new slot, n_ctx = 32768\n"
+    devices = t2_plan.read_blocks(DATA)[1]
+
+    def config(block):
+        facts, why = t2_plan.block_facts([text for _, text in t2_plan.split_log(block)], devices)
+        return facts["load_config"] if facts else why
+
+    base = config(BLOCK)
+    late = edited(BLOCK, slot, slot + b"llama_kv_cache: logged while serving\nwarmup: logged while serving\n")
+    check(isinstance(base, list) and len(base) == 185 and config(late) == base,
+          "a configuration line logged after the slot line doesn't change the load's configuration")
+    unended = late.replace(b"slot ", b"slt ")
+    check(isinstance(config(unended), list) and len(config(unended)) == 187,
+          "and a block with no slot line is read whole, as before")
+    reload = t2_plan.scan_blocks(DATA + late, BLOB, t2_plan.start_reading(DATA, BLOB)[0], START, DATA.split(b"\n")[0])
+    check(reload == ([], 2), "so a reload that logs such a line while serving still matches the every-load scan")
+
+
+def check_supersede_checks_inputs():
+    with tempfile.TemporaryDirectory() as folder:
+        ledger = pathlib.Path(folder) / "ledger.jsonl"
+        ledger.write_text('{"set":"S1"}\nnot json\n', encoding="utf-8")
+        found = t2_plan.supersede_checks(pathlib.Path(folder), ledger, {}, {})
+        check(len(found) == 1 and "isn't JSON" in found[0], f"a ledger line that isn't JSON is a problem, not an exception: {found}")
+
+
 def in_memory_plans():
     """(plan 1, plan 2) for a made-up plan 1 that holds every key a real one does."""
     plan_1 = {"seed": "1", "beacon": {"round": 7}, "code": "a" * 40, "model": "m", "model_digest": "d", "model_quantization": "q",
@@ -462,6 +491,8 @@ def main():
     check_parser()
     check_guards()
     check_every_load()
+    check_load_config_end()
+    check_supersede_checks_inputs()
     check_supersede_keys()
     check_committed_plan_two()
     print(f"{len(failures)} failed")

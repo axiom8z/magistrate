@@ -247,6 +247,7 @@ START_LINE = 'msg="starting llama-server"'
 CONFIG_LINE = re.compile(r"(?:cmn\s+)?((?:load_tensors:|llama_context:|llama_kv_cache:|llama_memory_recurrent:|resolve_fused_ops:|warmup:"
                          r"|llama_model_loader:|print_info:|common_param: common_params_print_info: build|common_param: system_info:"
                          r"|init: llama threadpool init).*)")
+SLOT_LINE = re.compile(r"(?:cmn\s+)?slot")
 OFFLOADED = re.compile(r"load_tensors: offloaded (\d+)/(\d+) layers to GPU")
 # Every model file Ollama starts the runner with is a blob named by its hash. Paths are masked so the facts name no machine.
 BLOB_PATH = re.compile(r"(?:[A-Za-z]:\\|(?<=\s)/)[^\n\"]*?sha256-[0-9a-f]{64}")
@@ -317,7 +318,10 @@ def read_blocks(data):
 def block_facts(block, devices):
     """(the LOAD_FACTS of one block, None), or (None, why they can't be read). A load logs exactly one `offloaded` line."""
     flags, _ = runner_command(block[0])
-    config = [mask_paths(found.group(1)) for found in map(CONFIG_LINE.match, block) if found]
+    # The configuration ends where the model starts serving, at the first `slot` line: a line logged later, while it serves,
+    # isn't part of what the load fixed. A block with no such line is read whole.
+    ended = next((i for i, text in enumerate(block) if SLOT_LINE.match(text)), len(block))
+    config = [mask_paths(found.group(1)) for found in map(CONFIG_LINE.match, block[:ended]) if found]
     split = [found.groups() for found in map(OFFLOADED.match, config) if found]
     if flags is None:
         return None, "the block's start line has no command that names a model"
@@ -829,7 +833,10 @@ def supersede_checks(root, ledger, plan_1, plan_2, extra=None):
     working = path.read_bytes() if path.exists() else b""
     if extra is not None:
         working += ledger_line(extra)
-    rows = [json.loads(line) for line in working.decode("utf-8").splitlines() if line.strip()]
+    try:
+        rows = [json.loads(line) for line in working.decode("utf-8").splitlines() if line.strip()]
+    except ValueError as error:
+        return [f"the ledger holds a line that isn't JSON: {error}"]
     return (supersede_problems(plan_1, plan_2) + holder_problems(root, plan_2) + ledger_problems(root, rows)
             + code_problems(root, plan_1, plan_2) + prefix_problems(root, working, ("HEAD", plan_1.get("code"), plan_2.get("code"))))
 
@@ -934,10 +941,14 @@ def supersede(date, expect, root=ROOT, ledger=shared.LEDGER, base_url="http://12
 
 def supersede_record(date, digest, root=ROOT, ledger=shared.LEDGER):
     """--supersede-record: appends the supersede line, once, after plan 2's commit, or refuses and writes nothing. It refuses
-    over what common_refusals names, a HEAD that isn't the one commit holding plan 2 and changing only that file from its
+    over what common_refusals names, a HEAD that is main or detached, a HEAD that isn't the one commit holding plan 2 and changing only that file from its
     code, bytes that don't hash to `digest`, and any problem in checks 1-5 with the line added in memory. Nothing is written
     until all of them pass, and there is no dry run."""
     problems, holder, plan_1 = common_refusals(root, ledger)
+    # A ledger line can't be taken back, so it is never written from main or a detached HEAD, where a commit can't be reviewed first.
+    branch = shared.git("symbolic-ref", "--short", "-q", "HEAD", cwd=root)
+    if branch in (None, "main"):
+        problems.append(f"HEAD is {'a detached commit' if branch is None else 'main'}, and a ledger line is written only from a branch")
     if not DATE.fullmatch(date):
         problems.append("the date is YYYY-MM-DD")
     if not HASH.fullmatch(digest):
