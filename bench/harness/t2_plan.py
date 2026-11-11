@@ -10,6 +10,8 @@ https://api.drand.sh/public/<round> and check it. The universe is every case T1 
     python -I -X utf8 bench/harness/t2_plan.py --draw                     # once it's published: fetch it, draw every list
     python -I -X utf8 bench/harness/t2_plan.py --oracle eval/t2/plan.json # after the four task batches: the oracle's list
     python -I -X utf8 bench/harness/t2_plan.py --partial <results> <name> <token>   # what a dead run left, for --abandon
+    python -I -X utf8 bench/harness/t2_plan.py --supersede <date> --expect <test loads>  # write plan 2, before any batch, from a live session
+    python -I -X utf8 bench/harness/t2_plan.py --supersede-record <date> --sha256 <hash> # after plan 2's commit: the ledger line, once
 
 --draw writes every list fixed in advance and eval/t2/plan.json, which pins what T2 runs from and names each batch, in the
 order they run. It takes nothing that could change a list: the universe is checked against T1-none's recorded data, the
@@ -20,7 +22,9 @@ drawn. Tasks are stratified by suite. Each list keeps a shuffled order, so a bat
 """
 import argparse
 import hashlib
+import http.client
 import json
+import os
 import pathlib
 import random
 import re
@@ -167,11 +171,20 @@ def batches(folder):
             for name, cases, arm, approver in rows]
 
 
-def server_facts(base_url="http://127.0.0.1:11434", model=MODEL):
-    """The model's digest and quantization and the server's version, as the local model server reports them."""
+def http_json(url, body=None, timeout=30):
+    """A GET, or a POST of `body` as JSON, and the JSON that comes back. The one place this file talks to the model server,
+    so a test can stand in for it."""
+    request = urllib.request.Request(url, data=None if body is None else json.dumps(body).encode(),
+                                     headers={} if body is None else {"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.load(response)
+
+
+def server_facts(base_url="http://127.0.0.1:11434", model=MODEL, log=None):
+    """The model's digest and quantization and the server's version, as the local model server reports them, with the load
+    facts the server's log holds for the model's last load. `log` is the log's path, the server's own by default."""
     def get(path):
-        with urllib.request.urlopen(base_url + path, timeout=30) as response:
-            return json.load(response)
+        return http_json(base_url + path)
 
     tags = get("/api/tags").get("models", [])
     found = [m for m in tags if m.get("name") in (model, f"{model}:latest")]
@@ -183,7 +196,8 @@ def server_facts(base_url="http://127.0.0.1:11434", model=MODEL):
     # reports neither, and for it the log read would be the real server's.
     real = version is not None or any(m.get("digest") for m in tags)
     return {"model_digest": digest, "model_quantization": details.get("quantization_level"), "server_version": version,
-            "server_config": server_config() if real else None, "size_vram": loaded[0].get("size_vram") if loaded else None, "real": real}
+            "server_config": server_config(log) if real else None, "size_vram": loaded[0].get("size_vram") if loaded else None,
+            "loaded": bool(loaded), "real": real, **(load_reading(base_url, model, log) if real else dict.fromkeys(READING, None))}
 
 
 # What the server started with that changes what a model computes, read from its log. Nothing that names a path.
@@ -193,12 +207,15 @@ NUMERICS = ("OLLAMA_FLASH_ATTENTION", "OLLAMA_KV_CACHE_TYPE", "OLLAMA_NUM_PARALL
             "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "GPU_DEVICE_ORDINAL", "HSA_OVERRIDE_GFX_VERSION")
 
 
-def server_config():
+def server_log():
+    """Where the local model server writes its log."""
+    return pathlib.Path(os.environ.get("LOCALAPPDATA", "")) / "Ollama" / "server.log"
+
+
+def server_config(log=None):
     """The settings the local server started with that change what a model computes, from the last "server config" line
     of its log: flash attention, the KV cache's type, parallel requests, the GPU backend and devices. None with no log."""
-    import os
-
-    log = pathlib.Path(os.environ.get("LOCALAPPDATA", "")) / "Ollama" / "server.log"
+    log = pathlib.Path(log) if log else server_log()
     if not log.exists():
         return None
     lines = [line for line in log.read_text(encoding="utf-8", errors="replace").splitlines() if 'msg="server config"' in line]
@@ -217,6 +234,152 @@ def load_model(base_url="http://127.0.0.1:11434", model=MODEL):
                                      headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=900) as response:
         response.read()
+
+
+# What a load fixes about the computation that /api/ps's size_vram doesn't: the runner's flags, the lines llama-server logs
+# about how it set the model up (the split, the buffers, the kernels and threads it chose), and the GPU. Plan 2 pins them.
+LOAD_FACTS = ("runner_flags", "load_config", "gpu_layers", "gpu_device")
+# server_facts' keys for them, and what the start check needs beyond the facts: where the load's block begins in the log,
+# the log's first line, and why they couldn't be read, if they couldn't.
+READING = LOAD_FACTS + ("load_offset", "log_first_line", "load_problem")
+START_LINE = 'msg="starting llama-server"'
+# A configuration line starts, after an optional `cmn` and spaces, with one of these.
+CONFIG_LINE = re.compile(r"(?:cmn\s+)?((?:load_tensors:|llama_context:|llama_kv_cache:|llama_memory_recurrent:|resolve_fused_ops:|warmup:"
+                         r"|llama_model_loader:|print_info:|common_param: common_params_print_info: build|common_param: system_info:"
+                         r"|init: llama threadpool init).*)")
+OFFLOADED = re.compile(r"load_tensors: offloaded (\d+)/(\d+) layers to GPU")
+# Every model file Ollama starts the runner with is a blob named by its hash. Paths are masked so the facts name no machine.
+BLOB_PATH = re.compile(r"(?:[A-Za-z]:\\|(?<=\s)/)[^\n\"]*?sha256-[0-9a-f]{64}")
+OTHER_PATH = re.compile(r"[A-Za-z]:\\\S+")
+
+
+def model_blob(base_url="http://127.0.0.1:11434", model=MODEL):
+    """The sha256 of the model's blob, from the first FROM line of the modelfile /api/show gives. The runner's --model names
+    it, so it's what tells this model's loads from another's. None if the server won't say."""
+    try:
+        reply = http_json(base_url + "/api/show", {"model": model})
+    except (OSError, ValueError, http.client.HTTPException):
+        return None
+    source = re.search(r"^FROM\s+(.*)$", reply.get("modelfile") or "", re.M) if isinstance(reply, dict) else None
+    digest = re.search(r"sha256-([0-9a-f]{64})", source.group(1)) if source else None
+    return digest.group(1) if digest else None
+
+
+def read_log(log=None):
+    """The server's log as bytes, or None if it can't be read."""
+    try:
+        return pathlib.Path(log if log else server_log()).read_bytes()
+    except OSError:
+        return None
+
+
+def first_line(data):
+    return data.split(b"\n", 1)[0].removesuffix(b"\r")
+
+
+def split_log(data):
+    """[(byte offset, line)], splitting only on the newline byte and dropping a trailing carriage return: at verbosity 4 the
+    log holds chat text, and str.splitlines would split on other characters that text can hold."""
+    found, at = [], 0
+    for raw in data.split(b"\n"):
+        found.append((at, raw.removesuffix(b"\r").decode("utf-8", errors="replace")))
+        at += len(raw) + 1
+    return found
+
+
+def mask_paths(text):
+    return OTHER_PATH.sub("<path>", BLOB_PATH.sub("<path>", text))
+
+
+def runner_command(start):
+    """(runner_flags, blob digest) from a start line: its cmd, unescaped, from the first ` --model ` on so a space in the
+    executable's path can't break it, with paths and the port masked. (None, None) if no --model names a blob."""
+    quoted = re.search(r'cmd="((?:[^"\\]|\\.)*)"', start)
+    command = re.sub(r'\\(["\\])', r"\1", quoted.group(1)) if quoted else ""
+    at = command.find(" --model ")
+    named = re.match(r"--model .*?sha256-([0-9a-f]{64})(?= |$)", command[at + 1:]) if at >= 0 else None
+    if named is None:
+        return None, None
+    return re.sub(r"--port \d+", "--port <port>", mask_paths(command[at + 1:])), named.group(1)
+
+
+def read_blocks(data):
+    """([(start offset, lines, the --model blob digest or None)], the `inference compute` lines). A block runs from a start
+    line to the next one, or to the end. The compute lines lose `available`, which changes with what else holds the GPU."""
+    lines = split_log(data)
+    starts = [i for i, (_, text) in enumerate(lines) if START_LINE in text]
+    blocks = [(lines[a][0], [text for _, text in lines[a:b]]) for a, b in zip(starts, starts[1:] + [len(lines)])]
+    devices = [re.sub(r' available="[^"]*"', "", text[text.index('msg="inference compute"'):]).rstrip()
+               for _, text in lines if 'msg="inference compute"' in text]
+    return [(at, text, runner_command(text[0])[1]) for at, text in blocks], devices
+
+
+def block_facts(block, devices):
+    """(the LOAD_FACTS of one block, None), or (None, why they can't be read). A load logs exactly one `offloaded` line."""
+    flags, _ = runner_command(block[0])
+    config = [mask_paths(found.group(1)) for found in map(CONFIG_LINE.match, block) if found]
+    split = [found.groups() for found in map(OFFLOADED.match, config) if found]
+    if flags is None:
+        return None, "the block's start line has no command that names a model"
+    if len(split) != 1:
+        return None, f"the block holds {len(split)} offloaded lines, and a load holds exactly one"
+    if not devices:
+        return None, "the log has no inference compute line"
+    return {"runner_flags": flags, "load_config": config, "gpu_layers": "/".join(split[0]), "gpu_device": devices}, None
+
+
+def start_reading(data, blob):
+    """(facts, the block's start offset, the log's first line, None) for the start check: the last block of the model whose
+    blob is `blob`. Or (None, None, None, why), never an error: no log, an empty one, no block of this model, a block with
+    no offloaded line or more than one, a fact's lines missing."""
+    if not blob:
+        return None, None, None, "the model's blob isn't known, so its loads can't be told from another's"
+    if not data or not data.strip():
+        return None, None, None, "the server's log is missing or empty"
+    blocks, devices = read_blocks(data)
+    mine = [block for block in blocks if block[2] == blob]
+    if not mine:
+        return None, None, None, "no load in the server's log belongs to this model"
+    facts, why = block_facts(mine[-1][1], devices)
+    return (facts, mine[-1][0], first_line(data), None) if facts else (None, None, None, why)
+
+
+def scan_blocks(data, blob, expected, offset, first):
+    """(problems, how many blocks matched) for the loads since the start check: every block of this model from `offset` on
+    must give `expected`, and a failed load Ollama retried with another split is one of them. Other models' blocks are
+    skipped, and a block whose --model can't be read stops the run. A model unloaded since gives no new block, which isn't a
+    problem. A log shorter than the offset, with another first line, or with no block at the offset was rotated."""
+    if not blob:
+        return ["the model's blob isn't known, so its loads can't be told from another's"], 0
+    if data is None:
+        return ["the server's log can't be read"], 0
+    if len(data) < offset or first_line(data) != first:
+        return ["the server's log was rotated or replaced since the run started"], 0
+    blocks, devices = read_blocks(data)
+    if offset not in [at for at, _, _ in blocks]:
+        return ["the load the run started on isn't in the server's log where it was"], 0
+    problems, matched = [], 0
+    for at, block, digest in blocks:
+        if at < offset or (digest is not None and digest != blob):
+            continue
+        if digest is None:
+            problems.append(f"the load at byte {at} has no --model that names a blob, so it can't be told from this model's")
+            continue
+        facts, why = block_facts(block, devices)
+        if facts is None:
+            problems.append(f"the load at byte {at}: {why}")
+        elif facts != {fact: expected.get(fact) for fact in LOAD_FACTS}:
+            problems.append(f"the load at byte {at} differs in {[fact for fact in LOAD_FACTS if facts[fact] != expected.get(fact)]}")
+        else:
+            matched += 1
+    return problems, matched
+
+
+def load_reading(base_url, model, log=None):
+    """server_facts' READING keys: the load facts of the model's last load in the log, where its block begins, and the log's
+    first line. The facts None and `load_problem` set to why, if they can't be read. It never raises."""
+    facts, offset, first, why = start_reading(read_log(log), model_blob(base_url, model))
+    return {**(facts or dict.fromkeys(LOAD_FACTS)), "load_offset": offset, "log_first_line": first, "load_problem": why}
 
 
 def git(*args):
@@ -508,15 +671,320 @@ def write_oracle(plan_path, ledger=shared.LEDGER, root=ROOT):
     print(f"broken under deny: {note['broken']}, chosen for the oracle: {note['chosen']}, invalid in an arm: {len(note['invalid_in_an_arm'])}")
 
 
+# Plan 2 supersedes plan 1 before any batch ran: the same sample, and a closed set of keys that change.
+PLAN_1, PLAN_2 = "eval/t2/plan.json", "eval/t2-plan-2.json"
+SCORING = "eval/SCORING.md"
+LEDGER_FILE = "eval/ledger.jsonl"
+# What may change in the repository after a plan's code commit: what scored runs write, the plans and their lists, and prose
+# (t2.py's own check of the code freeze takes this tuple).
+AFTER_PLAN = ("eval/ledger.jsonl", "docs/evidence/", "eval/t2/", PLAN_2)
+# What plan 2's code may change from plan 1's, besides AFTER_PLAN's paths and .md files. The gateway, shared.py and
+# t2_lines.py, which prints the verdicts, stay as plan 1 had them.
+CODE_FILES = ("bench/harness/t2.py", "bench/harness/t2_plan.py", "bench/harness/test_t2.py", "bench/harness/test_t2_plan.py",
+              "bench/harness/test_t2_git.py", ".github/workflows/ci.yml")
+CODE_FOLDERS = ("bench/harness/testdata/",)
+# The keys plan 2 may change from plan 1. Of `prose`, only SCORING.md's hash.
+SUPERSEDE_KEYS = ("code", *LOAD_FACTS, "size_vram", "prose", "supersedes")
+SUPERSEDE_REASON = ("Plan 1 pinned size_vram, read at the draw after a load-only request. Batch T2-ungated, which loads with a chat, "
+                    "read 127.73 MiB more. Test loads on 2026-11-11 read 4,882,725,599 bytes after a load-only request and "
+                    "5,016,660,212 after a chat, on each of three loads, with the same load facts every time. So size_vram "
+                    "changes with the first chat while the load facts don't. Before any case ran, the pin was replaced by the "
+                    "load facts.")
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+COMMIT = re.compile(r"[0-9a-f]{40}")
+HASH = re.compile(r"[0-9a-f]{64}")
+
+
+def committed_bytes(root, commit, path):
+    """A file's bytes as `commit` holds them, or None. Raw, since shared.git decodes and strips what it returns."""
+    try:
+        done = subprocess.run(["git", "-C", str(root), "show", f"{commit}:{path}"], capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return done.stdout if done.returncode == 0 else None
+
+
+def holders(root, path):
+    """The commits that touch a file, or None if git can't say."""
+    found = shared.git("log", "--format=%H", "--", path, cwd=root)
+    return None if found is None else found.split()
+
+
+def ledger_line(entry):
+    """The bytes shared.append writes for an entry."""
+    return (json.dumps(entry, separators=(",", ":")) + "\n").encode()
+
+
+def supersede_line(date, digest):
+    return {"set": "T2-plan", "label": "supersede", "plan": PLAN_2, "plan_sha256": digest, "date": date}
+
+
+def started_lines(rows):
+    """[(index, line)] for each T2 batch's started line: the label `started` and a set beginning `T2-`, other than T2-plan."""
+    return [(i, row) for i, row in enumerate(rows) if row.get("label") == "started"
+            and str(row.get("set", "")).startswith("T2-") and row["set"] != "T2-plan"]
+
+
+def supersede_problems(plan_1, plan_2):
+    """Check 1: plan 2 equals plan 1 outside SUPERSEDE_KEYS, holds well-formed values in them, and says why it supersedes."""
+    found = [f"plan 2's {name} isn't plan 1's" for name in sorted((set(plan_1) | set(plan_2)) - set(SUPERSEDE_KEYS))
+             if name not in plan_1 or name not in plan_2 or plan_1[name] != plan_2[name]]
+    if "supersedes" in plan_1:
+        found.append("plan 1 is itself a superseding plan")
+    whole = [plan["prose"] if isinstance(plan.get("prose"), dict) else {} for plan in (plan_1, plan_2)]
+    prose = [{k: v for k, v in p.items() if k != SCORING} for p in whole]
+    if prose[0] != prose[1] or SCORING not in whole[0] or not HASH.fullmatch(str(whole[1].get(SCORING))):
+        found.append("plan 2's prose is plan 1's, apart from SCORING.md's hash, which has to be one")
+    code, size = plan_2.get("code"), plan_2.get("size_vram")
+    if not (isinstance(code, str) and COMMIT.fullmatch(code)):
+        found.append("plan 2's code names no commit")
+    if not (isinstance(size, int) and not isinstance(size, bool)):
+        found.append("plan 2's size_vram isn't a number")
+    flags, config, layers, device = (plan_2.get(fact) for fact in LOAD_FACTS)
+    if not (isinstance(flags, str) and flags and isinstance(layers, str) and re.fullmatch(r"\d+/\d+", layers)
+            and all(isinstance(v, list) and v and all(isinstance(line, str) for line in v) for v in (config, device))):
+        found.append("plan 2's load facts aren't a runner command, configuration lines, a layer split and devices")
+    why = plan_2.get("supersedes")
+    if not isinstance(why, dict) or set(why) != {"plan", "commit", "lists_drawn_by", "reason", "date"}:
+        found.append("plan 2's supersedes doesn't hold exactly plan, commit, lists_drawn_by, reason and date")
+    elif (why["plan"], why["lists_drawn_by"], why["reason"]) != (PLAN_1, plan_1.get("code"), SUPERSEDE_REASON) \
+            or not (isinstance(why["commit"], str) and COMMIT.fullmatch(why["commit"])) or not DATE.fullmatch(str(why["date"])):
+        found.append("plan 2's supersedes doesn't name plan 1, the code its lists were drawn by, the reason and a date")
+    return found
+
+
+def holder_problems(root, plan_2):
+    """Check 2: exactly one commit holds each plan's file, nothing under eval/t2 (or plan 2's file) changed after it, and
+    plan 2 names plan 1's holder. Anything git can't say is a problem."""
+    found = []
+    for path, scope in ((PLAN_1, "eval/t2"), (PLAN_2, PLAN_2)):
+        held = holders(root, path)
+        if held is None or len(held) != 1:
+            found.append(f"exactly one commit should hold {path}, and {len(held or [])} do")
+            continue
+        moved = shared.git("diff", "--name-only", held[0], "HEAD", "--", scope, cwd=root)
+        loose = shared.git("status", "--porcelain", "--untracked-files=all", "--", scope, cwd=root)
+        if moved is None or loose is None or moved or loose:
+            found.append(f"{scope} changed after the commit that holds {path}")
+        why = plan_2.get("supersedes")
+        if path == PLAN_1 and (why.get("commit") if isinstance(why, dict) else None) != held[0]:
+            found.append("plan 2 doesn't name the commit that holds plan 1")
+    return found
+
+
+def ledger_problems(root, rows):
+    """Check 3: the ledger holds exactly one supersede line, no T2 batch started before it, every started line's commit
+    descends from the commit that holds plan 2, and the line names plan 2's file and the hash of its bytes, as HEAD holds
+    them and as they are on disk, so a changed plan 2 committed later is refused."""
+    marks = [i for i, row in enumerate(rows) if row.get("set") == "T2-plan" and row.get("label") == "supersede"]
+    if len(marks) != 1:
+        return [f"the ledger should hold exactly one supersede line, and holds {len(marks)}"]
+    line, found = rows[marks[0]], []
+    if line.get("plan") != PLAN_2:
+        found.append(f"the supersede line names {line.get('plan')}, not {PLAN_2}")
+    disk = (pathlib.Path(root) / PLAN_2).read_bytes() if (pathlib.Path(root) / PLAN_2).is_file() else None
+    for where, data in (("HEAD", committed_bytes(root, "HEAD", PLAN_2)), ("disk", disk)):
+        if data is None or hashlib.sha256(data).hexdigest() != line.get("plan_sha256"):
+            found.append(f"plan 2 as {where} holds it isn't the file the supersede line hashes")
+    held = holders(root, PLAN_2)
+    started = started_lines(rows)
+    if [row["set"] for i, row in started if i < marks[0]]:
+        found.append("a T2 batch started before the supersede line")
+    if started and (held is None or len(held) != 1):
+        return found + ["no one commit holds plan 2, so a started batch can't be tied to it"]
+    for _, row in started:
+        commit = row.get("commit")
+        if not (isinstance(commit, str) and COMMIT.fullmatch(commit)):
+            found.append(f"{row['set']} started from {commit!r}, which names no commit")
+        elif shared.git("merge-base", "--is-ancestor", held[0], commit, cwd=root) is None:
+            found.append(f"{row['set']} started from {commit[:12]}, which doesn't descend from plan 2's commit, or doesn't resolve")
+    return found
+
+
+def code_problems(root, plan_1, plan_2):
+    """Check 4: the code diff from plan 1's code commit to plan 2's names only the harness, its tests and test data, CI, and
+    what the freeze already lets change."""
+    codes = (plan_1.get("code"), plan_2.get("code"))
+    if not all(isinstance(code, str) and COMMIT.fullmatch(code) for code in codes):
+        return ["a plan's code names no commit"]
+    changed = shared.git("diff", "--name-only", *codes, cwd=root)
+    if changed is None:
+        return [f"plan 2's code {codes[1][:12]} can't be compared with plan 1's {codes[0][:12]}"]
+    stray = [path for path in changed.splitlines() if path and path not in CODE_FILES
+             and not path.startswith(CODE_FOLDERS + AFTER_PLAN) and not path.endswith(".md")]
+    return [f"plan 2's code differs from plan 1's in files the freeze doesn't let change: {stray[:5]}"] if stray else []
+
+
+def prefix_problems(root, working, commits):
+    """Check 5, and the ledger-prefix check it extends: the ledger as it is, `working`, starts with the ledger as each
+    commit held it, so lines were only added."""
+    return [f"the ledger isn't what it was at {commit} with lines added after it" for commit in commits
+            if (held := committed_bytes(root, commit, LEDGER_FILE)) is None or not working.startswith(held)]
+
+
+def supersede_checks(root, ledger, plan_1, plan_2, extra=None):
+    """Checks 1-5 for plan 2: every problem, none when it stands. `ledger` is the ledger's path, and `extra` a line not
+    written yet, added in memory: as an entry for check 3, and as bytes for check 5."""
+    path = pathlib.Path(ledger)
+    working = path.read_bytes() if path.exists() else b""
+    if extra is not None:
+        working += ledger_line(extra)
+    rows = [json.loads(line) for line in working.decode("utf-8").splitlines() if line.strip()]
+    return (supersede_problems(plan_1, plan_2) + holder_problems(root, plan_2) + ledger_problems(root, rows)
+            + code_problems(root, plan_1, plan_2) + prefix_problems(root, working, ("HEAD", plan_1.get("code"), plan_2.get("code"))))
+
+
+def common_refusals(root, ledger):
+    """(problems, the commit that holds plan 1, plan 1) for what both commands refuse over: a tree that isn't clean, plan 1
+    not held by exactly one commit, a supersede line already in the ledger, or a T2 batch that has started."""
+    found = []
+    status = shared.git("status", "--porcelain", "--untracked-files=all", cwd=root)
+    if status is None or status:
+        found.append("the tree isn't clean")
+    held = holders(root, PLAN_1)
+    data = committed_bytes(root, held[0], PLAN_1) if held and len(held) == 1 else None
+    if data is None:
+        found.append(f"exactly one commit should hold {PLAN_1}, and {len(held or [])} do")
+    rows = shared.entries(ledger)
+    if any(row.get("set") == "T2-plan" and row.get("label") == "supersede" for row in rows):
+        found.append("the ledger already holds a supersede line")
+    if started_lines(rows):
+        found.append("a T2 batch has started")
+    return found, held[0] if data is not None else None, json.loads(data) if data is not None else None
+
+
+def expected_facts(path):
+    """The LOAD_FACTS the test loads gave, from a test-loads file: every reading of every load, all of them the same."""
+    try:
+        loads = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))["loads"]
+        readings = [{fact: reading["facts"][fact] for fact in LOAD_FACTS} for load in loads for reading in load["readings"]]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise SystemExit(f"{path} isn't a file of test loads: {error!r}")
+    if not readings or any(reading != readings[0] for reading in readings):
+        raise SystemExit(f"{path} holds no readings, or readings that differ, so it doesn't say what to expect")
+    return readings[0]
+
+
+def load_session(base_url, model, log, plan_1, expected):
+    """Step 8's session, on the live server: load with a chat and read the facts and where the load began, three more chats,
+    an unload, a reload with a chat, and the shipped every-load scan from the first offset, which has to find two blocks
+    and match both. Returns (the facts read after the first chat, problems). Stops at the first problem."""
+    def chat():
+        http_json(base_url + "/v1/chat/completions", {"model": model, "messages": [{"role": "user", "content": "Reply with OK."}],
+                                                      "max_tokens": 2}, timeout=900)
+
+    try:
+        chat()
+        first = server_facts(base_url, model, log)
+        if first["load_problem"] or not first["loaded"]:
+            return first, [first["load_problem"] or "the model isn't loaded right after a chat"]
+        moved = [fact for fact in PINNED_FACTS if first[fact] != plan_1.get(fact)]
+        moved += [fact for fact in LOAD_FACTS if first[fact] != expected[fact]]
+        if moved:
+            return first, [f"the server's {moved} aren't plan 1's pins and the test loads' facts"]
+        for _ in range(3):
+            chat()
+        http_json(base_url + "/api/generate", {"model": model, "keep_alive": 0}, timeout=900)
+        chat()
+        problems, matched = scan_blocks(read_log(log), model_blob(base_url, model), expected, first["load_offset"], first["log_first_line"])
+    except (OSError, ValueError, http.client.HTTPException) as error:
+        raise SystemExit(f"the model server failed during the session: {error!r}")
+    if not problems and matched != 2:
+        problems.append(f"the scan from the first load found {matched} matching loads, and the session made two")
+    return first, problems
+
+
+def plan_two(plan_1, holder, code, facts, scoring_hash, date):
+    """Plan 2: plan 1's keys in their order, the load facts after server_config, and the keys SUPERSEDE_KEYS lets change."""
+    document = {}
+    for name, value in plan_1.items():
+        document[name] = value
+        if name == "server_config":
+            document.update({fact: facts[fact] for fact in LOAD_FACTS})
+    document.update(code=code, size_vram=facts["size_vram"], prose={**plan_1["prose"], SCORING: scoring_hash},
+                    supersedes={"plan": PLAN_1, "commit": holder, "lists_drawn_by": plan_1["code"], "reason": SUPERSEDE_REASON, "date": date})
+    return document
+
+
+def supersede(date, expect, root=ROOT, ledger=shared.LEDGER, base_url="http://127.0.0.1:11434", model=MODEL, log=None):
+    """--supersede: writes plan 2 and prints its sha256, or refuses and writes nothing. It refuses over what
+    common_refusals names, an existing plan 2, a HEAD it can't read, facts that aren't plan 1's pins and the expected load
+    facts, a session whose scan doesn't match two loads, and a plan 2 that fails check 1."""
+    problems, holder, plan_1 = common_refusals(root, ledger)
+    if (pathlib.Path(root) / PLAN_2).exists():
+        problems.append(f"{PLAN_2} exists already")
+    if not DATE.fullmatch(date):
+        problems.append("the date is YYYY-MM-DD")
+    code = shared.git("rev-parse", "HEAD", cwd=root)
+    if code is None:
+        problems.append("HEAD can't be read")
+    if problems:
+        raise SystemExit(f"--supersede refuses, and wrote nothing: {'; '.join(problems)}")
+    facts, problems = load_session(base_url, model, log, plan_1, expected_facts(expect))
+    if problems:
+        raise SystemExit(f"--supersede refuses, and wrote nothing: {'; '.join(problems)}")
+    document = plan_two(plan_1, holder, code, facts, shared.file_hash(pathlib.Path(root) / SCORING), date)
+    problems = supersede_problems(plan_1, document)
+    if problems:
+        raise SystemExit(f"--supersede refuses, and wrote nothing: {'; '.join(problems)}")
+    text = json.dumps(document, indent=1) + "\n"
+    (pathlib.Path(root) / PLAN_2).write_text(text, encoding="utf-8", newline="\n")
+    print(f"wrote {PLAN_2}, uncommitted. sha256 {hashlib.sha256(text.encode()).hexdigest()}")
+
+
+def supersede_record(date, digest, root=ROOT, ledger=shared.LEDGER):
+    """--supersede-record: appends the supersede line, once, after plan 2's commit, or refuses and writes nothing. It refuses
+    over what common_refusals names, a HEAD that isn't the one commit holding plan 2 and changing only that file from its
+    code, bytes that don't hash to `digest`, and any problem in checks 1-5 with the line added in memory. Nothing is written
+    until all of them pass, and there is no dry run."""
+    problems, holder, plan_1 = common_refusals(root, ledger)
+    if not DATE.fullmatch(date):
+        problems.append("the date is YYYY-MM-DD")
+    if not HASH.fullmatch(digest):
+        problems.append("--sha256 is 64 lower-case hex characters")
+    data, head, plan_2 = committed_bytes(root, "HEAD", PLAN_2), shared.git("rev-parse", "HEAD", cwd=root), None
+    try:
+        plan_2 = json.loads(data)
+    except (TypeError, ValueError):
+        pass
+    if not isinstance(plan_2, dict):
+        problems.append(f"HEAD holds no {PLAN_2} that can be read")
+    else:
+        if holders(root, PLAN_2) != [head]:
+            problems.append(f"HEAD isn't the one commit that holds {PLAN_2}")
+        if shared.git("diff", "--name-only", str(plan_2.get("code")), "HEAD", cwd=root) != PLAN_2:
+            problems.append(f"HEAD should change only {PLAN_2} from plan 2's code")
+        if hashlib.sha256(data).hexdigest() != digest:
+            problems.append("plan 2 as HEAD holds it doesn't hash to --sha256")
+        if plan_1 is not None:
+            problems += supersede_checks(root, ledger, plan_1, plan_2, extra=supersede_line(date, digest))
+    if problems:
+        raise SystemExit(f"--supersede-record refuses, and wrote nothing: {'; '.join(problems)}")
+    shared.append(ledger, supersede_line(date, digest))
+    print(f"appended the supersede line for plan 2, sha256 {digest}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--fix-beacon", metavar="DATE", help="write DRAND_ROUND to the ledger as the beacon line, once, before the round is published")
     parser.add_argument("--draw", action="store_true", help="once the round is published: fetch it and draw every list into eval/t2")
     parser.add_argument("--oracle", type=pathlib.Path, help="the plan, to draw the oracle's list from the recorded task batches")
+    parser.add_argument("--supersede", metavar="DATE", help="before any batch: run the live session and write eval/t2-plan-2.json, uncommitted")
+    parser.add_argument("--expect", type=pathlib.Path, help="with --supersede: the test loads' file, whose load facts the session has to give")
+    parser.add_argument("--supersede-record", metavar="DATE", help="after plan 2's commit: append the supersede line to the ledger, once")
+    parser.add_argument("--sha256", help="with --supersede-record: the hash of plan 2, as --supersede printed it")
     parser.add_argument("--partial", nargs=3, metavar=("RESULTS", "NAME", "TOKEN"),
                         help="cut a dead run's results at its last progress line, into docs/evidence/t2/<name>.partial.jsonl")
     options = parser.parse_args()
-    if options.fix_beacon:
+    if bool(options.expect) != bool(options.supersede) or bool(options.sha256) != bool(options.supersede_record):
+        parser.error("--expect goes with --supersede, and --sha256 with --supersede-record, and each needs the other")
+    if options.supersede and options.supersede_record:
+        parser.error("give --supersede or --supersede-record, not both")
+    if options.supersede:
+        supersede(options.supersede, options.expect)
+    elif options.supersede_record:
+        supersede_record(options.supersede_record, options.sha256)
+    elif options.fix_beacon:
         import time
 
         if DRAND_ROUND is None:
@@ -546,7 +1014,7 @@ def main():
     elif options.oracle:
         write_oracle(options.oracle)
     else:
-        parser.error("give --fix-beacon, --draw, --oracle or --partial")
+        parser.error("give --fix-beacon, --draw, --oracle, --partial, --supersede or --supersede-record")
 
 
 if __name__ == "__main__":
