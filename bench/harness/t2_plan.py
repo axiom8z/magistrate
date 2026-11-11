@@ -36,7 +36,7 @@ import shared  # noqa: E402
 SEED = "20261104"
 # drand's default chain: a public beacon whose rounds are fixed 30 seconds apart. This round is chosen before it's published.
 DRAND_CHAIN = "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce"
-DRAND_ROUND = None
+DRAND_ROUND = 6632078
 SUITES = ("banking", "slack", "travel", "workspace")
 # DESIGN section 8, "Sizes". The 40 new-task pairs and 30 BaseAttack pairs come with milestone 11.
 UNGATED, TASKS, PAIRS, FLIPS, ORACLE_MOST = 40, 48, 120, 20, 24
