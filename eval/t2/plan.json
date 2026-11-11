@@ -1,0 +1,249 @@
+{
+ "seed": "20261104",
+ "beacon": {
+  "chain": "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce",
+  "round": 6632078,
+  "randomness": "36286e61b750b7efe65e9a2fb94c879138a81a7d7d95a57ae45c1ea381700e78",
+  "signature": "97a976bd8f4fd19c18d292e6650fea0a95e077691876f8e54eb39ed6ad9cbfc7c1b5bcd5ae9e69c24277fb71ba642293178cb06c25ba6b0dd5e45ccc95042568229ca97139788600a5fa010fe5a582eb4d3232050a03ceea6343631ffe738c46",
+  "previous_signature": "a9f01670434414d9f51e4a0690f765c35dbbf4ab6c3e802071714fec5fb308889658db9dbf4c242a0d86d96e7b89374109ce4b13c0113f8574e6f1ece7eaacf0009c524935273b85add71bb718fa258c6657bdbc5d05622d39eaca1245c64c8c",
+  "check": "https://api.drand.sh/8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce/public/6632078",
+  "other_lines": []
+ },
+ "code": "593f5e2b0940eda97669e0a7ac3bc32ec8e10363",
+ "model": "qwen3.8-32k",
+ "model_digest": "a10fea243bc91f0b9e70f90d6edc275adc4a8b1b322fafe62c077e3b706e2dbc",
+ "model_quantization": "Q4_K_M",
+ "server_version": "0.40.14",
+ "server_config": {
+  "OLLAMA_FLASH_ATTENTION": "false",
+  "OLLAMA_KV_CACHE_TYPE": "",
+  "OLLAMA_NUM_PARALLEL": "1",
+  "OLLAMA_CONTEXT_LENGTH": "0",
+  "OLLAMA_GPU_OVERHEAD": "0",
+  "OLLAMA_VULKAN": "true",
+  "OLLAMA_SCHED_SPREAD": "false",
+  "OLLAMA_LLM_LIBRARY": "",
+  "OLLAMA_MAX_LOADED_MODELS": "0",
+  "OLLAMA_IGPU_ENABLE": "",
+  "OLLAMA_GO_TEMPLATE": "true",
+  "LLAMA_ARG_FIT": "",
+  "LLAMA_ARG_FIT_TARGET": "",
+  "CUDA_VISIBLE_DEVICES": "",
+  "GGML_VK_VISIBLE_DEVICES": "",
+  "HIP_VISIBLE_DEVICES": "",
+  "ROCR_VISIBLE_DEVICES": "]\"",
+  "GPU_DEVICE_ORDINAL": "",
+  "HSA_OVERRIDE_GFX_VERSION": ""
+ },
+ "size_vram": 4882725599,
+ "case_timeout": 7200,
+ "call_timeout": 900,
+ "prose": {
+  "eval/SCORING.md": "d0d8012c075921f50f317d55bb29d6d803fa68c12af8db279e193a9aea58a4c7",
+  "docs/DESIGN.md": "a5db9225155e61cd84efb68347c8b00720b1ebddf112710982a29f4c36617995"
+ },
+ "labels": "docs/labels/merged.json",
+ "labels_sha256": "d54b51fbfccf4b27d591e69b55a20fb396b0ce70b569b8a746a227e3d17c6b91",
+ "universe": "docs/evidence/first-scores/T1-none.jsonl",
+ "universe_sha256": "d6375479e1f923f5c21a32aa1cf14e075c450b0b573452dd17d579aa678b4be1",
+ "seats": {
+  "tasks": {
+   "banking": 8,
+   "slack": 10,
+   "travel": 10,
+   "workspace": 20
+  },
+  "pairs_by_suite": {
+   "banking": 18,
+   "slack": 15,
+   "travel": 17,
+   "workspace": 70
+  },
+  "pairs_by_attack": {
+   "banking/injection_task_0": 2,
+   "banking/injection_task_1": 2,
+   "banking/injection_task_2": 2,
+   "banking/injection_task_3": 2,
+   "banking/injection_task_4": 2,
+   "banking/injection_task_5": 2,
+   "banking/injection_task_6": 2,
+   "banking/injection_task_7": 2,
+   "banking/injection_task_8": 2,
+   "slack/injection_task_1": 3,
+   "slack/injection_task_2": 3,
+   "slack/injection_task_3": 3,
+   "slack/injection_task_4": 3,
+   "slack/injection_task_5": 3,
+   "travel/injection_task_0": 2,
+   "travel/injection_task_1": 3,
+   "travel/injection_task_2": 2,
+   "travel/injection_task_3": 3,
+   "travel/injection_task_4": 2,
+   "travel/injection_task_5": 3,
+   "travel/injection_task_6": 2,
+   "workspace/injection_task_0": 5,
+   "workspace/injection_task_1": 5,
+   "workspace/injection_task_2": 5,
+   "workspace/injection_task_3": 5,
+   "workspace/injection_task_4": 5,
+   "workspace/injection_task_5": 5,
+   "workspace/injection_task_6": 5,
+   "workspace/injection_task_7": 5,
+   "workspace/injection_task_8": 5,
+   "workspace/injection_task_9": 5,
+   "workspace/injection_task_10": 5,
+   "workspace/injection_task_11": 5,
+   "workspace/injection_task_12": 5,
+   "workspace/injection_task_13": 5
+  }
+ },
+ "lists": {
+  "ungated": "d53d07fafe9a3eb52718b0b4ae467a24b74fabdc91a9a5f19be5a4bf11bcd3a2",
+  "goals": "29103e726c11f83b3bcc89e010eb6b78388dd7daf4e2a7eeef2548e82c8b5dd4",
+  "tasks-1": "7d50bc2c69542e07b84b40938e3aca42314835f83443bd6404e1a39c4d8c579e",
+  "tasks-2": "0b2f3691deba699007340570454586fcb11a30f1622b1035005dcb102920bf00",
+  "pairs-1": "971847ac14598f4626b18d7c4d36b8c84aba49f26eb4abd50a7bf9cae872f322",
+  "pairs-2": "995a09afead55b462b12037f52389b79d6c4c19e5d4bb4dd479df04b380e6c84",
+  "pairs-3": "c2ddd0146ce1fb8863e90f53bb817f69abbc7a026890ccec8852051f3d9dbe0f",
+  "pairs-4": "698b5bd84667bdf76a4b3d59c90fea633c6217482fbb09f9e3cff8a749911960",
+  "flips-none": "14b3ce09bbc8b4f35125a0aa03dbb592782a911efdd647f3448fd83b8bd66d36",
+  "flips-deny": "1457aa5ae8128070548fd1a6ee1372b74b68dd0bc0c167369b88b7b6d26b2d3b"
+ },
+ "batches": [
+  {
+   "set": "T2-ungated",
+   "cases": "eval/t2/ungated.json",
+   "list": "ungated",
+   "arm": "none",
+   "approver": "deny",
+   "cases_sha256": "d53d07fafe9a3eb52718b0b4ae467a24b74fabdc91a9a5f19be5a4bf11bcd3a2"
+  },
+  {
+   "set": "T2-goals",
+   "cases": "eval/t2/goals.json",
+   "list": "goals",
+   "arm": "none",
+   "approver": "deny",
+   "cases_sha256": "29103e726c11f83b3bcc89e010eb6b78388dd7daf4e2a7eeef2548e82c8b5dd4"
+  },
+  {
+   "set": "T2-tasks-1-none",
+   "cases": "eval/t2/tasks-1.json",
+   "list": "tasks-1",
+   "arm": "none",
+   "approver": "deny",
+   "cases_sha256": "7d50bc2c69542e07b84b40938e3aca42314835f83443bd6404e1a39c4d8c579e"
+  },
+  {
+   "set": "T2-tasks-1-deny",
+   "cases": "eval/t2/tasks-1.json",
+   "list": "tasks-1",
+   "arm": "value",
+   "approver": "deny",
+   "cases_sha256": "7d50bc2c69542e07b84b40938e3aca42314835f83443bd6404e1a39c4d8c579e"
+  },
+  {
+   "set": "T2-tasks-2-none",
+   "cases": "eval/t2/tasks-2.json",
+   "list": "tasks-2",
+   "arm": "none",
+   "approver": "deny",
+   "cases_sha256": "0b2f3691deba699007340570454586fcb11a30f1622b1035005dcb102920bf00"
+  },
+  {
+   "set": "T2-tasks-2-deny",
+   "cases": "eval/t2/tasks-2.json",
+   "list": "tasks-2",
+   "arm": "value",
+   "approver": "deny",
+   "cases_sha256": "0b2f3691deba699007340570454586fcb11a30f1622b1035005dcb102920bf00"
+  },
+  {
+   "set": "T2-oracle",
+   "cases": "docs/evidence/t2/T2-oracle.cases.json",
+   "list": null,
+   "arm": "value",
+   "approver": "oracle"
+  },
+  {
+   "set": "T2-pairs-1-none",
+   "cases": "eval/t2/pairs-1.json",
+   "list": "pairs-1",
+   "arm": "none",
+   "approver": "deny",
+   "cases_sha256": "971847ac14598f4626b18d7c4d36b8c84aba49f26eb4abd50a7bf9cae872f322"
+  },
+  {
+   "set": "T2-pairs-1-deny",
+   "cases": "eval/t2/pairs-1.json",
+   "list": "pairs-1",
+   "arm": "value",
+   "approver": "deny",
+   "cases_sha256": "971847ac14598f4626b18d7c4d36b8c84aba49f26eb4abd50a7bf9cae872f322"
+  },
+  {
+   "set": "T2-pairs-2-none",
+   "cases": "eval/t2/pairs-2.json",
+   "list": "pairs-2",
+   "arm": "none",
+   "approver": "deny",
+   "cases_sha256": "995a09afead55b462b12037f52389b79d6c4c19e5d4bb4dd479df04b380e6c84"
+  },
+  {
+   "set": "T2-pairs-2-deny",
+   "cases": "eval/t2/pairs-2.json",
+   "list": "pairs-2",
+   "arm": "value",
+   "approver": "deny",
+   "cases_sha256": "995a09afead55b462b12037f52389b79d6c4c19e5d4bb4dd479df04b380e6c84"
+  },
+  {
+   "set": "T2-pairs-3-none",
+   "cases": "eval/t2/pairs-3.json",
+   "list": "pairs-3",
+   "arm": "none",
+   "approver": "deny",
+   "cases_sha256": "c2ddd0146ce1fb8863e90f53bb817f69abbc7a026890ccec8852051f3d9dbe0f"
+  },
+  {
+   "set": "T2-pairs-3-deny",
+   "cases": "eval/t2/pairs-3.json",
+   "list": "pairs-3",
+   "arm": "value",
+   "approver": "deny",
+   "cases_sha256": "c2ddd0146ce1fb8863e90f53bb817f69abbc7a026890ccec8852051f3d9dbe0f"
+  },
+  {
+   "set": "T2-pairs-4-none",
+   "cases": "eval/t2/pairs-4.json",
+   "list": "pairs-4",
+   "arm": "none",
+   "approver": "deny",
+   "cases_sha256": "698b5bd84667bdf76a4b3d59c90fea633c6217482fbb09f9e3cff8a749911960"
+  },
+  {
+   "set": "T2-pairs-4-deny",
+   "cases": "eval/t2/pairs-4.json",
+   "list": "pairs-4",
+   "arm": "value",
+   "approver": "deny",
+   "cases_sha256": "698b5bd84667bdf76a4b3d59c90fea633c6217482fbb09f9e3cff8a749911960"
+  },
+  {
+   "set": "T2-flips-none",
+   "cases": "eval/t2/flips-none.json",
+   "list": "flips-none",
+   "arm": "none",
+   "approver": "deny",
+   "cases_sha256": "14b3ce09bbc8b4f35125a0aa03dbb592782a911efdd647f3448fd83b8bd66d36"
+  },
+  {
+   "set": "T2-flips-deny",
+   "cases": "eval/t2/flips-deny.json",
+   "list": "flips-deny",
+   "arm": "value",
+   "approver": "deny",
+   "cases_sha256": "1457aa5ae8128070548fd1a6ee1372b74b68dd0bc0c167369b88b7b6d26b2d3b"
+  }
+ ]
+}
