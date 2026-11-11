@@ -26,6 +26,7 @@ class FakeModel(http.server.ThreadingHTTPServer):
     def __init__(self, script, context=32768, digest=None, version=None):
         super().__init__(("127.0.0.1", 0), Handler)
         self.script, self.context, self.seen, self.digest, self.version = list(script), context, [], digest, version
+        self.posts = 0
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -51,6 +52,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.reply(body)
 
     def do_POST(self):
+        self.server.posts += 1
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         if body.get("max_tokens") == 2:
             # The harness's own call to load the model before it checks the context. It isn't part of any case.
@@ -257,9 +259,9 @@ def main():
     thread.start()
     url = f"http://127.0.0.1:{server.server_address[1]}/v1"
 
-    def t2(*extra, model="fake-model"):
+    def t2(*extra, model="fake-model", out=True):
         return subprocess.run([sys.executable, "-X", "utf8", str(HERE / "t2.py"), "--clone", str(clone), "--work", str(work / "refused"), "--model", model,
-                               "--base-url", url, "--arm", "none", "--cases", str(work / "none-cases.json"), "--out", str(work / "refused.jsonl"), *extra],
+                               "--base-url", url, "--arm", "none", "--cases", str(work / "none-cases.json"), *(["--out", str(work / "refused.jsonl")] if out else []), *extra],
                               capture_output=True, text=True, encoding="utf-8", timeout=300)
 
     preview = t2("--practice", model="qwen3.8-32k")
@@ -286,8 +288,22 @@ def main():
     skipped = t2("--first-score", "T2-ungated", "--skip-context-check")
     check(skipped.returncode != 0 and "never a first score" in skipped.stderr, "a first score can't skip the model's context check")
     unplanned = t2("--first-score", "T2-made-up")
-    check(unplanned.returncode != 0 and ("isn't a batch of the plan" in unplanned.stderr or "only as a batch of eval/t2/plan.json" in unplanned.stderr),
+    check(unplanned.returncode != 0 and ("isn't a batch of the plan" in unplanned.stderr or "only as a batch of eval/t2-plan-2.json" in unplanned.stderr),
           "and only a batch of the plan runs as one")
+    # --check-plan builds what a first score's check needs and stops there, so it takes no --out and any set is refused.
+    unchecked = t2("--first-score", "T2-made-up", "--check-plan", out=False)
+    check(unchecked.returncode != 0 and ("isn't a batch of the plan" in unchecked.stdout or "only as a batch of eval/t2-plan-2.json" in unchecked.stderr),
+          "--check-plan refuses a set that isn't a batch of the plan, and starts no run")
+    with_out = t2("--first-score", "T2-ungated", "--check-plan")
+    check(with_out.returncode != 0 and "takes no --out" in with_out.stderr, "--check-plan refuses to run with --out, which would start a run")
+    check(server.posts == 0, "and neither makes a model call, not even the one that loads the model")
+    check("goes with --check-plan" in t2("--first-score", "T2-ungated", "--check-load").stderr, "--check-load without --check-plan is refused")
+    load_out = t2("--first-score", "T2-ungated", "--check-plan", "--check-load")
+    check(load_out.returncode != 0 and "takes no --out" in load_out.stderr, "--check-plan with --check-load refuses to run with --out")
+    loaded = t2("--first-score", "T2-made-up", "--check-plan", "--check-load", out=False)
+    check(loaded.returncode != 0 and "only as a batch of eval/t2-plan-2.json" in loaded.stderr + loaded.stdout and server.posts == 0,
+          "--check-load with no plan 2 refuses and makes no model call: the loading chat is made only once plan 2 exists")
+    check("--first-score batch" in t2("--check-plan", out=False).stderr, "and it refuses to run without a --first-score batch to check")
     check("arm none, approver deny, model fake-model" in preview.stdout + skipped.stdout and "input none-cases.json sha256 " in skipped.stdout
           and "case limit 7200 s, call limit 900 s" in skipped.stdout,
           "a run's output says its arm, approver, model, limits, and the hash of its cases, before anything else")

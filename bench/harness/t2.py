@@ -31,7 +31,7 @@ An argument the ground truth leaves out is taken out. So a URL the tool standard
 without the owner the tool adds, or an unchanged name the ground truth didn't pass all match, and a different recipient or
 file doesn't. Only control arguments are compared, so an amount or a message body never decides it.
 
-A first score runs only as a batch of eval/t2/plan.json, in the plan's order, from the code, model build, server, limits
+A first score runs only as a batch of eval/t2-plan-2.json, in the plan's order, from the code, model build, server, limits
 and prose the plan pins, with the plan's own case list, arm, approver and labels. It writes a progress line to the ledger
 after each case and a finished line as its last case ends, so a finished run can't be abandoned and a dead one's results
 can't be trimmed. A dead batch is kept with bench/harness/t2_plan.py --partial and bench/ledger.py --abandon --data, then
@@ -41,6 +41,7 @@ invalid, and running only the rest. The real model never runs except as a planne
 import argparse
 import collections
 import hashlib
+import http.client
 import json
 import os
 import pathlib
@@ -62,10 +63,8 @@ import t1  # noqa: E402
 import t2_plan  # noqa: E402
 import wire  # noqa: E402
 
-PLAN = ROOT / "eval" / "t2" / "plan.json"
+PLAN = ROOT / t2_plan.PLAN_2
 NEVER_SENT = "never sent"
-# What may change in the repository after the plan's code commit: what scored runs write, the plan and its lists, and prose.
-AFTER_PLAN = ("eval/ledger.jsonl", "docs/evidence/", "eval/t2/")
 
 NUM_CTX = 32768
 VOID_AT = 0.95
@@ -431,14 +430,27 @@ def main():
     parser.add_argument("--approver", default="deny", choices=("deny", "approve", "inattentive", "oracle"))
     parser.add_argument("--cases", type=pathlib.Path, required=True,
                         help="a JSON list of [suite, user task, injection task or null]; an injection task's ID as the user task asks for its goal")
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--out", help="where a run's results go; a plan check takes none")
     parser.add_argument("--labels", type=pathlib.Path, help="merged answers from bench/label/labels.py, in place of the forecast's labels")
     parser.add_argument("--call-timeout", type=float, default=900, help="seconds to wait for one model call")
     parser.add_argument("--case-timeout", type=float, default=7200, help="seconds one case may hold the gateway, model calls included")
     parser.add_argument("--skip-context-check", action="store_true", help="only for a fake model server in tests")
     parser.add_argument("--first-score", metavar="NAME")
+    parser.add_argument("--check-plan", action="store_true",
+                        help="with --first-score: print why that batch can't run now, and run nothing, write nothing and call no model")
+    parser.add_argument("--check-load", action="store_true",
+                        help="with --check-plan: also load the model with the chat a run starts with, and run the start check and one "
+                             "per-case check against the plan, writing nothing and running no case")
     parser.add_argument("--practice", action="store_true")
     options = parser.parse_args()
+    if options.check_load and not options.check_plan:
+        parser.error("--check-load goes with --check-plan")
+    if options.check_plan and not options.first_score:
+        parser.error("--check-plan checks the plan for a --first-score batch")
+    if options.check_plan and (options.out or options.practice):
+        parser.error("--check-plan starts no run, so it takes no --out and isn't a practice run")
+    if not options.check_plan and not options.out:
+        parser.error("--out is required")
     if options.first_score and options.practice:
         parser.error("a run is either a first score or practice")
     if options.arm != "none" and not options.gateway:
@@ -474,17 +486,25 @@ def main():
         print(line)
     skip = owed = 0
     if options.first_score:
-        if pathlib.Path(options.out).exists():
+        if not options.check_plan and pathlib.Path(options.out).exists():
             sys.exit("a first score writes its results to a new --out file, and never over one that exists")
         if options.skip_context_check:
             sys.exit("--skip-context-check is only for a test's fake model, never a first score")
         if plan is None:
-            sys.exit("a T2 first score runs only as a batch of eval/t2/plan.json")
+            sys.exit(f"a T2 first score runs only as a batch of {t2_plan.PLAN_2}, and it isn't written yet")
         problems = plan_problems(options, plan, server, wanted)
-        if problems:
+        if options.check_plan:
+            # Without --check-load this stops before the model is called, a start is recorded or --out is opened.
+            for problem in problems:
+                print(problem)
+            print(f"{len(problems)} problems with running {options.first_score} now")
+            if problems or not options.check_load:
+                return 1 if problems else 0
+        elif problems:
             sys.exit(f"this can't run as the first score {options.first_score}: {'; '.join(problems)}")
-        shared.refuse_unless_first_score(options.first_score, facts)
-        skip, owed = retry_start(plan, options.first_score, wanted)
+        if not options.check_plan:
+            shared.refuse_unless_first_score(options.first_score, facts)
+            skip, owed = retry_start(plan, options.first_score, wanted)
     # t1.Harness takes T1's options, and T2 has those and more.
     options.suite, options.limit, options.workers = None, None, 1
     runner = Runner(options)
@@ -496,6 +516,7 @@ def main():
     missing = [key for key in wanted if key not in by_key]
     if missing:
         sys.exit(f"these cases don't exist: {missing[:5]}")
+    load_offset = log_first = None
     if not options.skip_context_check:
         # One tiny call loads the model, so its real context, and how much of it sits in GPU memory, can be read first.
         runner.client.client.chat.completions.create(model=options.model, messages=[{"role": "user", "content": "Reply with OK."}], max_tokens=2)
@@ -504,9 +525,22 @@ def main():
         loaded = f"model loaded with {server['size_vram']} bytes in GPU memory"
         facts.append(loaded)
         print(loaded)
-        if options.first_score and server["size_vram"] != plan["size_vram"]:
-            # How many layers sit on the GPU changes what the model computes, and depends on what else holds GPU memory.
-            sys.exit(f"the plan loaded the model with {plan['size_vram']} bytes in GPU memory; close what else uses the GPU, and run this again")
+        if options.check_load:
+            print(f"compared with the plan: {t2_plan.PINNED_FACTS + t2_plan.LOAD_FACTS}; layers on the GPU {server['gpu_layers']}, "
+                  f"load at byte {server['load_offset']} of the log")
+        if options.first_score:
+            refusal = start_refusal(server, plan)
+            if refusal:
+                sys.exit(f"{refusal}, so this can't run as the first score {options.first_score}")
+            # Where this load's block begins in the log, for pins_moved's scan of every load since.
+            load_offset, log_first = server["load_offset"], server["log_first_line"]
+        if options.check_load:
+            # What a run does between its first chat and its first case, once, and nothing after it.
+            moved = pins_moved(options, plan, load_offset, log_first)
+            for reason in moved:
+                print(reason)
+            print(f"{len(moved)} problems with the load and the per-case check")
+            return 1 if moved else 0
     # Opened before the start is written, so a path that can't be written fails without spending it. Never over a file.
     out = open(options.out, "x" if options.first_score else "w", encoding="utf-8", newline="\n")
     token = None
@@ -517,13 +551,6 @@ def main():
         token = started.split()[-1]
         to_disk(sys.stdout)
     records = []
-
-    def pins_moved():
-        """The model or server facts the plan pins that differ now, checked after each case of a first score."""
-        if not options.first_score:
-            return []
-        now = t2_plan.server_facts(options.base_url.rsplit("/v1", 1)[0], options.model)
-        return [fact for fact in t2_plan.PINNED_FACTS + ("size_vram",) if now.get(fact) != plan[fact]]
 
     def keep(record):
         records.append(record)
@@ -553,12 +580,12 @@ def main():
             # dead run, and a retry, after the server is back, finishes it.
             out.close()
             sys.exit(f"the model's server stopped answering during {t1.pair(record)}, so this run stops here, unfinished")
-        moved = pins_moved()
+        moved = pins_moved(options, plan, load_offset, log_first)
         if moved:
             # The model or server changed, maybe during this case, so it isn't kept: it becomes the case the run died on,
             # and the retry runs the rest under what the plan pins.
             out.close()
-            sys.exit(f"the server's {moved} changed by the end of {t1.pair(record)}, so this run stops here, unfinished, without it")
+            sys.exit(f"the server isn't what the plan pins by the end of {t1.pair(record)}, so this run stops here, unfinished, without it: {'; '.join(moved)}")
         keep(record)
         print(f"{t1.pair(record)}: {record['seconds']} s, {len(record['model_calls'])} model calls, {'invalid' if record['problems'] else 'ok'}", file=sys.stderr, flush=True)
     out.close()
@@ -574,6 +601,32 @@ def main():
     return 0
 
 
+def start_refusal(server, plan):
+    """Why the model just loaded isn't what the plan pins, or None. size_vram is printed and recorded and never compared: it
+    moves with the first chat while the layer split doesn't. What the load fixed is read from the server's log instead."""
+    if server["load_problem"] or not server["loaded"]:
+        return f"the model's load can't be read: {server['load_problem'] or 'the server says it is not loaded right after a chat'}"
+    moved = [fact for fact in t2_plan.PINNED_FACTS + t2_plan.LOAD_FACTS if server[fact] != plan[fact]]
+    return f"the server's {moved} aren't the plan's" if moved else None
+
+
+def pins_moved(options, plan, load_offset, log_first):
+    """Why the model or server no longer is what the plan pins, checked after each case of a first score: the pinned
+    facts, and every load in the log since the run started. A model unloaded between cases isn't a reason, and a server
+    or log that can't be read is."""
+    if not options.first_score:
+        return []
+    base = options.base_url.rsplit("/v1", 1)[0]
+    try:
+        now = t2_plan.server_facts(base, options.model)
+        blob = t2_plan.model_blob(base, options.model)
+        problems, _ = t2_plan.scan_blocks(t2_plan.read_log(), blob, {fact: plan[fact] for fact in t2_plan.LOAD_FACTS}, load_offset, log_first)
+    except (OSError, ValueError, http.client.HTTPException) as error:
+        # URLError is an OSError. A server that went down in the middle of a check stops the run as cleanly as one that moved.
+        return [f"the server or its log couldn't be read: {error!r}"]
+    return [f"{fact} differs" for fact in t2_plan.PINNED_FACTS if now.get(fact) != plan[fact]] + problems
+
+
 def to_disk(stream):
     """Flushes a stream and, when it's a file, makes the OS write it out, because this PC has shut down under load."""
     stream.flush()
@@ -584,7 +637,7 @@ def to_disk(stream):
 
 
 def plan_problems(options, plan, server, wanted):
-    """Why this can't run as the planned first score it names. Each batch is a row of eval/t2/plan.json, run in the plan's
+    """Why this can't run as the planned first score it names. Each batch is a row of eval/t2-plan-2.json, run in the plan's
     order, from the code, model build, server, limits and prose the plan pins, on the plan's own list, arm, approver and
     labels, with the ledger only ever added to."""
     name = options.first_score
@@ -626,7 +679,7 @@ def plan_problems(options, plan, server, wanted):
         found.append(f"the plan runs {base} on arm {row['arm']} with approver {row['approver']}")
     if options.model not in (plan["model"], f"{plan['model']}:latest"):
         found.append(f"the plan's model is {plan['model']}")
-    for fact in t2_plan.PINNED_FACTS:
+    for fact in t2_plan.PINNED_FACTS + t2_plan.LOAD_FACTS:
         if server.get(fact) != plan[fact]:
             found.append(f"the server's {fact} is {server.get(fact)}, and the plan's is {plan[fact]}")
     if (options.case_timeout, options.call_timeout) != (plan["case_timeout"], plan["call_timeout"]):
@@ -651,26 +704,14 @@ def plan_problems(options, plan, server, wanted):
     if changed is None:
         found.append(f"HEAD can't be compared with the plan's code commit {plan['code']}")
     else:
-        stray = [path for path in changed.splitlines() if path and not path.startswith(AFTER_PLAN) and not path.endswith(".md")]
+        stray = [path for path in changed.splitlines() if path and not path.startswith(t2_plan.AFTER_PLAN) and not path.endswith(".md")]
         if stray:
             found.append(f"code changed after the plan's commit: {stray[:5]}")
-    # The plan itself is held by exactly one commit, and nothing under eval/t2 changed after it.
-    holders = shared.git("log", "--format=%H", "--", "eval/t2/plan.json")
-    if holders is None or len(holders.split()) != 1:
-        found.append(f"exactly one commit should hold the plan, and {len((holders or '').split())} do")
-    else:
-        moved = shared.git("diff", "--name-only", holders.split()[0], "HEAD", "--", "eval/t2")
-        loose = shared.git("status", "--porcelain", "--untracked-files=all", "--", "eval/t2")
-        if moved is None or loose is None or moved or loose:
-            found.append("the plan's lists changed after the commit that holds them")
+    # Plan 2 against plan 1, the one commit that holds each, and the ledger only ever added to, at HEAD and at each plan's code.
+    found += t2_plan.supersede_checks(ROOT, shared.LEDGER, json.loads((ROOT / t2_plan.PLAN_1).read_text(encoding="utf-8")), plan)
     stray = shared.git("status", "--porcelain", "--untracked-files=all", "--", "bench", "cmd", "internal", "test", "go.mod", "go.sum")
     if stray is None or stray:
         found.append(f"files the run could load aren't committed: {(stray or 'git failed').splitlines()[:5]}")
-    working = shared.LEDGER.read_bytes() if shared.LEDGER.exists() else b""
-    for commit in ("HEAD", plan["code"]):
-        held = subprocess.run(["git", "-C", str(ROOT), "show", f"{commit}:eval/ledger.jsonl"], capture_output=True)
-        if held.returncode != 0 or not working.startswith(held.stdout):
-            found.append(f"the ledger isn't what it was at {commit} with lines added after it")
     return found
 
 
