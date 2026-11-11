@@ -686,10 +686,10 @@ CODE_FOLDERS = ("bench/harness/testdata/",)
 # The keys plan 2 may change from plan 1. Of `prose`, only SCORING.md's hash.
 SUPERSEDE_KEYS = ("code", *LOAD_FACTS, "size_vram", "prose", "supersedes")
 SUPERSEDE_REASON = ("Plan 1 pinned size_vram, read at the draw after a load-only request. Batch T2-ungated, which loads with a chat, "
-                    "read 127.73 MiB more. Test loads on 2026-11-11 read 4,882,725,599 bytes after a load-only request and "
-                    "5,016,660,212 after a chat, on each of three loads, with the same load facts every time. So size_vram "
-                    "changes with the first chat while the load facts don't. Before any case ran, the pin was replaced by the "
-                    "load facts.")
+                    "read 127.73 MiB more and refused before any case. Test loads on 2026-11-11 read 5,016,660,212 bytes after a chat on "
+                    "each of three loads, and 4,882,725,599, plan 1's figure, after the one load-only request, with the same load "
+                    "facts at every reading. So size_vram changes with the first chat while the load facts don't. Before any case "
+                    "ran, the pin was replaced by the load facts.")
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
 HASH = re.compile(r"[0-9a-f]{64}")
