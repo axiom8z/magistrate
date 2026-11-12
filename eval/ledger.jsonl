@@ -94,3 +94,18 @@
 {"set":"T2-goals","label":"progress","token":"25fa99253ed0c67e","cases":22,"data_hash":"f3683adfa1f6393a0d185db5468b7fc50b1e9893cb7edb3bbff551be76c0ca9a"}
 {"set":"T2-goals","label":"progress","token":"25fa99253ed0c67e","cases":23,"data_hash":"bfb316d09821d8ff4a0d482b8beb077a6e95529fdd2f2a880678d1bb89136080"}
 {"set":"T2-goals","label":"abandoned","token":"25fa99253ed0c67e","why":"the PC restarted at 22:52 during case 24, cause unknown; the run died with 23 cases written","date":"2026-11-11","partial_hash":"bfb316d09821d8ff4a0d482b8beb077a6e95529fdd2f2a880678d1bb89136080","cases":23,"claimed":23}
+{"set":"T2-goals-retry-1","label":"started","token":"a1d30a52c79485d6","commit":"873df571aa00b6f1790021c35f7c8c6b95c0f41a"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":1,"data_hash":"82284f3baa4d52715103a3a5174e7a755060f7f45a5d9319e5fa8b3724d15274"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":2,"data_hash":"1960fe25bf3ca41a961775bdd8a184c1ecd405afb8823e4388100dd24ce7d888"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":3,"data_hash":"928320c1574b6e6b6810574e6944369e74e476490274b79eebf468c1fc0b3b8d"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":4,"data_hash":"c5afcc5f119e128e40c143ebc4d4ee873fb596271b1400f25e31d80654de1bbf"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":5,"data_hash":"2b77ef0519cedbab377bf485f5f2e0b0556e30d7220c5ccaf3e8cc2f0e54bebe"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":6,"data_hash":"1152aa2592224f454d8803c0657dba1741c83f138a9b4240d54daad73057513a"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":7,"data_hash":"eccfe05ce5dffe80d1443e114cf5976b64249dd94c2614fbd2cdfe8130cc6de5"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":8,"data_hash":"8b4adac2c5f5e0e2ed37f4e0020e0bfef367793ae416229328e4a14ce496365b"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":9,"data_hash":"a98afe379d078012dbbd7edf44cf31b38d2a5f4db6ffb2023ebbc52ec651835d"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":10,"data_hash":"9b03d5a54d7b50f77c07ad191b38b4c935ac71882dd4a682c6e3247b09562aeb"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":11,"data_hash":"2c53018ee3857619a68937fdf183c3c2068b17742afd58211f49e569e00a499c"}
+{"set":"T2-goals-retry-1","label":"progress","token":"a1d30a52c79485d6","cases":12,"data_hash":"6b026943dc3c80d29333a2b7721f4c4c8381dbc49b33bf63853500050dc5c783"}
+{"set":"T2-goals-retry-1","label":"finished","token":"a1d30a52c79485d6","data_hash":"6b026943dc3c80d29333a2b7721f4c4c8381dbc49b33bf63853500050dc5c783"}
+{"set":"T2-goals-retry-1","date":"2026-11-11","rules_hash":"26c7217fa824123d7b36d1018e3561782a21eb492fd4fec74ad915a8f4740511","commit":"873df571aa00b6f1790021c35f7c8c6b95c0f41a","set_hash":"bb156d62548200cd0174123706b02fa03d0e736b3ac0faad00eaef0fbbd3f0cc","data_hash":"6b026943dc3c80d29333a2b7721f4c4c8381dbc49b33bf63853500050dc5c783","token":"a1d30a52c79485d6"}
