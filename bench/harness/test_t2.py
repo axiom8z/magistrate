@@ -403,8 +403,11 @@ def main():
     load_out = t2("--first-score", "T2-ungated", "--check-plan", "--check-load")
     check(load_out.returncode != 0 and "takes no --out" in load_out.stderr, "--check-plan with --check-load refuses to run with --out")
     loaded = t2("--first-score", "T2-made-up", "--check-plan", "--check-load", out=False)
-    check(loaded.returncode != 0 and "only as a batch of eval/t2-plan-2.json" in loaded.stderr + loaded.stdout and server.posts == 0,
-          "--check-load with no plan 2 refuses and makes no model call: the loading chat is made only once plan 2 exists")
+    import t2_plan
+    said = loaded.stderr + loaded.stdout
+    refusal = "isn't a batch of the plan" if (t2_plan.ROOT / t2_plan.PLAN_2).exists() else "only as a batch of eval/t2-plan-2.json"
+    check(loaded.returncode != 0 and refusal in said and server.posts == 0,
+          "--check-load refuses a set that isn't a batch of the plan, as plan 2 exists or not, and makes no model call")
     check("--first-score batch" in t2("--check-plan", out=False).stderr, "and it refuses to run without a --first-score batch to check")
     check("arm none, approver deny, model fake-model" in preview.stdout + skipped.stdout and "input none-cases.json sha256 " in skipped.stdout
           and "case limit 7200 s, call limit 900 s" in skipped.stdout,
