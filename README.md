@@ -8,7 +8,7 @@ This is value matching, which is a heuristic and not a guarantee. [The design](d
 
 ## Status
 
-**Under construction: milestones 1 to 9 of 12 are done.** The first scores are in, including a blind test on a benchmark nobody here had read, which failed its utility line. A live local model runs next, in batches, and then attacks written after the freeze.
+**Under construction: milestones 1 to 10 of 12 are done.** The first scores are in, including a blind test on a benchmark nobody here had read, which failed its utility line, and a run on a live local model. Milestone 11, attacks written after the freeze, was left out by the owner's decision on 2026-11-11, before any of it was built. Milestone 12, a paid sample, runs only after a measured price and the owner's yes.
 
 The labels the first scores used were written after the code was frozen, by fresh AI sessions that saw only a rubric and the tools' schemas. No person labelled. [How they were made](docs/labels/README.md).
 
@@ -33,6 +33,10 @@ The design set lines this project could fail before anything was measured, and t
 | Over 1 false hit per 1,000 strings, on self-written sets | 1.1691 (45/38,490) on the first score; 0.0259-0.0519 post-hoc | **Crossed on the first score** |
 | Added p99 above 5 ms at 1 KB and 500 requests a second | 1.297 ms at worst | Not crossed |
 | Binary and forecast over 5 points apart without a written cause, on the six opened models | 1,271 of 1,272 logs agree, and 20 of the 609 pairs the forecast covered let the attack through, against its 21. Each difference has its cause written | Not crossed |
+| Live model, headroom: the attack wins at least 20% of the 39 ungated pairs under no gateway | 0 of 39 (0.00%), Wilson 95% 0.00-8.97% | No headroom, so the next line doesn't apply |
+| Live model: the attack wins under the gateway with nobody approving more than a quarter as often as without one, pooled or in any suite | 0 of 116 pairs under each arm | Does not apply, no headroom |
+| Live model: over 10% of the pairs that attempted the attack's call had one run, pooled or in any suite | 0 attempted of 114 pairs, 0/0 | Not crossed, and no stop claim stands: 114 of 114 (100.00%) never attempted the attack's call |
+| Live model, with an approver that accepts the calls a task needs: normal tasks passing under 90% of those with no gateway | 43 against 46 | Not crossed |
 
 **The blind test failed.** [AgentDyn](https://github.com/SaFo-Lab/AgentDyn) adds three suites to AgentDojo, and nobody here read their tasks. Two fresh AI sessions labelled their tools from schemas alone, and the cautious rubric made 48 of the 69 tools acting, 41 of them irreversible. Replayed from the benchmark's own correct calls with nobody to approve anything, no task passed, so the design's rule that zero utility fails whatever the attack rate applies. The attack line held, but it says less than it seems: only one suite's attacks win at all without a gateway in this replay, and without a gateway only 23 of the 60 tasks pass. On a new set of tools, value matching with careful labels and no person present stops everything, the work included.
 
@@ -42,7 +46,9 @@ The design set lines this project could fail before anything was measured, and t
 
 **Delay:** the gateway added 1.235-1.297 ms at p99 for an action and 0.243-0.282 ms for a read, at 1 KB and 500 requests a second, on one desktop. [Details](docs/evidence/delay/README.md).
 
-**Not measured yet:** a live model, attacks written after the rules were frozen, and a person answering the approval dialog in the real client. [The plan](docs/DESIGN.md#8-evaluation-plan) says what each will be held to.
+**The live-model run has no security result.** In the 114 of the 116 attack pairs covered by T0's frozen map of each attack's calls, the model never attempted the attack's call under `deny`, and with no gateway the attack won 0 of the 39 ungated pairs that count. With no headroom, the line on how often the attack wins under the gateway doesn't apply, and the 0 wins under each arm say nothing about the gateway. No stop claim stands either, since more than half the pairs, here all 114, never attempted the attack's call. Why the model never tried the attack's call was not measured. With nobody approving (`deny`), 26 of 48 normal tasks passed, against 46 of 48 with no gateway. One no-gateway task case was invalid and counts as a pass, which counts against the gateway, so 46 of 48 includes it. The batch of 35 goal checks had 2 invalid cases, over the 5% limit, so it was void and all 35 count as missing. With an approver that accepts a call when it does what one of the task's own ground-truth calls does (26 passing under `deny` plus 17 passing on the oracle's rerun = 43, against 46 under no gateway), 43 is not below 90% of 46 (41.4), so that line was not crossed. That approver reads DESIGN more loosely than its literal text, which favours the gateway, and it is a script, not a person. This is one local model on one machine. [Details](docs/evidence/t2/README.md).
+
+**Not measured:** attacks written after the rules were frozen (milestone 11, left out), and a person answering the approval dialog in the real client. [The plan](docs/DESIGN.md#8-evaluation-plan) says what each will be held to.
 
 ## Try it
 
