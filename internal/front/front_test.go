@@ -25,14 +25,16 @@ import (
 	"github.com/axiom8z/magistrate/test/fakemcp"
 )
 
-// backend is one fake server behind a gateway under test.
+// backend is one fake server behind a gateway under test. A hold, if set, keeps the gateway's start
+// waiting after this server's handshake until the hold closes, whatever the context says.
 type backend struct {
 	cfg  upstream.Config
 	pipe *fakemcp.Pipe
+	hold <-chan struct{}
 }
 
 func server(name string, h fakemcp.Handler) backend {
-	return backend{upstream.Config{Name: name}, fakemcp.NewPipe(h)}
+	return backend{cfg: upstream.Config{Name: name}, pipe: fakemcp.NewPipe(h)}
 }
 
 // session is a gateway under test, with the test playing the client over in-memory pipes.
@@ -65,6 +67,30 @@ func (b *lockedBuffer) String() string {
 	return b.buf.String()
 }
 
+// clientOut is the client's end of stdout. As each line is written, it checks that no result goes out
+// while its call is still in the in-flight table, since a client that reuses an ID the moment it reads
+// the result must not be refused as a duplicate. From the client's side that gap is too narrow to hit
+// reliably, so the table is read while the line is being written. Error replies are left out, because
+// refusing a duplicate is one, and it goes out while the first call is still running. The check counts
+// on tests never giving another request the ID of a call that is still running.
+type clientOut struct {
+	t  *testing.T
+	gw *Gateway
+	w  io.Writer
+}
+
+func (c clientOut) Write(line []byte) (int, error) {
+	if m, err := rpc.Parse(line); err == nil && m.IsResponse() && m.Error == nil {
+		c.gw.mu.Lock()
+		_, running := c.gw.inflight[string(m.ID)]
+		c.gw.mu.Unlock()
+		if running {
+			c.t.Errorf("the result for %s went out while its call was still in flight", m.ID)
+		}
+	}
+	return c.w.Write(line)
+}
+
 // passConfig is the mode the tests of the proxy itself run in, with nothing being decided.
 func passConfig() Config { return Config{Policy: &policy.Policy{Mode: policy.ModePass}} }
 
@@ -91,11 +117,14 @@ func newSessionIn(t *testing.T, dir string, cfg Config, backends ...backend) *se
 		var servers []*upstream.Server
 		for _, b := range backends {
 			servers = append(servers, upstream.Attach(ctx, b.cfg, b.pipe.Stdin, b.pipe.Stdout, b.pipe.Kill))
+			if b.hold != nil {
+				<-b.hold
+			}
 		}
 		return servers
 	}
 	go func() {
-		err := s.gw.Serve(inR, outW, start)
+		err := s.gw.Serve(inR, clientOut{t: t, gw: s.gw, w: outW}, start)
 		outW.Close()
 		s.done <- err
 	}()
@@ -448,7 +477,7 @@ func (brokenWriter) Write([]byte) (int, error) { return 0, errors.New("broken pi
 func TestEOFStopsTheServersAndClosesTheLog(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		polite := server("polite", fakemcp.Default)
-		stubborn := backend{upstream.Config{Name: "stubborn"}, fakemcp.NewStubbornPipe(fakemcp.Default)}
+		stubborn := backend{cfg: upstream.Config{Name: "stubborn"}, pipe: fakemcp.NewStubbornPipe(fakemcp.Default)}
 		s := newSession(t, polite, stubborn)
 		s.initialize()
 		s.call(1, "polite__echo", `{}`)
@@ -492,6 +521,34 @@ func TestAClientLeavingDuringAHandshakeStopsThatServer(t *testing.T) {
 		}
 		if !held.pipe.Killed() {
 			t.Error("the session ended with its server still running")
+		}
+	})
+}
+
+// A start can outlast the client: StartAll returns only when every server has finished, and a server
+// whose handshake the client's leaving cut short has to die first. Here a hold stands in for such a slow
+// start, after one server is up. Serve must wait for the start, then stop the server it returned.
+// synctest.Wait returns only once every other goroutine is durably blocked, so a Serve that did not wait
+// would have returned before the check. Unlike the test above, this one needs no race detector to fail.
+func TestServeWaitsForAStartThatOutlivesTheClient(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		late := server("late", fakemcp.Default)
+		late.hold = release
+		s := newSession(t, late)
+		synctest.Wait()
+		s.in.Close()
+		synctest.Wait()
+		if len(s.done) != 0 {
+			t.Error("Serve returned while the start was still running")
+		}
+		close(release)
+		s.close()
+		if s.err != nil {
+			t.Errorf("Serve = %v", s.err)
+		}
+		if !late.pipe.Killed() {
+			t.Error("a server the start returned after the client left is still running")
 		}
 	})
 }
