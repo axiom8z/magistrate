@@ -45,7 +45,7 @@ function Invoke-Round([string]$name, [string]$instruction, [string[]]$clientFlag
         Write-Host 'Claude Code will open here. If it asks whether to trust the folder, say yes: it is an empty temp folder.'
         Write-Host 'A question from Magistrate will appear, naming mallory@evil.example.'
         Write-Host "When it does: $instruction" -ForegroundColor Yellow
-        Write-Host 'Once the model has said "done", leave with /exit and Enter, or press Ctrl+C twice.'
+        Write-Host 'Once the model has said "done", leave with /exit and Enter. Ctrl+C would stop this script as well.'
         Read-Host 'Press Enter to start' | Out-Null
         $state = Join-Path $work "$name-state"
         & $gateway run --policy $policy --state $state --prompt-file $prompt --client $claude.Source -- `
