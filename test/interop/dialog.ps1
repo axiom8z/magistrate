@@ -43,6 +43,7 @@ function Invoke-Round([string]$name, [string]$instruction, [string[]]$clientFlag
         Write-Host ''
         Write-Host "=== Round: $name" -ForegroundColor Cyan
         Write-Host 'Claude Code will open here. If it asks whether to trust the folder, say yes: it is an empty temp folder.'
+        Write-Host 'Its choice starts on "No, exit", so press the Down arrow before Enter.'
         Write-Host 'A question from Magistrate will appear, naming mallory@evil.example.'
         Write-Host "When it does: $instruction" -ForegroundColor Yellow
         Write-Host 'Once the model has said "done", leave with /exit and Enter. Ctrl+C would stop this script as well.'
