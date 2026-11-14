@@ -48,6 +48,9 @@ type session struct {
 	notes  *lockedBuffer
 	closed sync.Once
 	err    error
+	// reading holds a token whenever the client is reading its stdout. A test that takes it stops the
+	// client reading, and the gateway's next write waits until the test gives it back.
+	reading chan struct{}
 }
 
 type lockedBuffer struct {
@@ -72,14 +75,18 @@ func (b *lockedBuffer) String() string {
 // the result must not be refused as a duplicate. From the client's side that gap is too narrow to hit
 // reliably, so the table is read while the line is being written. Error replies are left out, because
 // refusing a duplicate is one, and it goes out while the first call is still running. The check counts
-// on tests never giving another request the ID of a call that is still running.
+// on tests never giving another request the ID of a call that is still running. Each write also waits
+// for the session's reading token.
 type clientOut struct {
-	t  *testing.T
-	gw *Gateway
-	w  io.Writer
+	t       *testing.T
+	gw      *Gateway
+	w       io.Writer
+	reading chan struct{}
 }
 
 func (c clientOut) Write(line []byte) (int, error) {
+	<-c.reading
+	defer func() { c.reading <- struct{}{} }()
 	if m, err := rpc.Parse(line); err == nil && m.IsResponse() && m.Error == nil {
 		c.gw.mu.Lock()
 		_, running := c.gw.inflight[string(m.ID)]
@@ -108,7 +115,9 @@ func newSessionIn(t *testing.T, dir string, cfg Config, backends ...backend) *se
 	}
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
-	s := &session{t: t, in: inW, lines: make(chan string, 256), done: make(chan error, 1), dir: dir, notes: &lockedBuffer{}}
+	s := &session{t: t, in: inW, lines: make(chan string, 256), done: make(chan error, 1), dir: dir, notes: &lockedBuffer{},
+		reading: make(chan struct{}, 1)}
+	s.reading <- struct{}{}
 	if cfg.StateDir == "" { // a test of a broken latch names its own folder, apart from the log's
 		cfg.StateDir = dir
 	}
@@ -124,7 +133,7 @@ func newSessionIn(t *testing.T, dir string, cfg Config, backends ...backend) *se
 		return servers
 	}
 	go func() {
-		err := s.gw.Serve(inR, clientOut{t: t, gw: s.gw, w: outW}, start)
+		err := s.gw.Serve(inR, clientOut{t: t, gw: s.gw, w: outW, reading: s.reading}, start)
 		outW.Close()
 		s.done <- err
 	}()
@@ -549,6 +558,31 @@ func TestServeWaitsForAStartThatOutlivesTheClient(t *testing.T) {
 		}
 		if !late.pipe.Killed() {
 			t.Error("a server the start returned after the client left is still running")
+			late.pipe.Kill() // so the bubble can end and the package's other tests still run
+		}
+	})
+}
+
+// A call can still be running after the client has left. A held call that the leaving cancels still has
+// to tell the client its question is over. Serve must wait for every call, so that each record reaches
+// the log before the log closes. Here the client has stopped reading, which holds that call at that
+// write, and as above a Serve that did not wait would have returned before the test looks at s.done.
+func TestServeWaitsForACallStillRunningWhenTheClientLeaves(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s, _ := guard{prompt: "tell alice", tools: mailTools}.start(t)
+		s.call(1, "s__send_mail", `{"to":"evil@x.example"}`)
+		if m := s.recv(); m.Method != "elicitation/create" {
+			t.Fatalf("wanted a question, got %+v", m)
+		}
+		<-s.reading
+		s.in.Close()
+		synctest.Wait()
+		if len(s.done) != 0 {
+			t.Error("Serve returned while a call was still running")
+		}
+		s.reading <- struct{}{}
+		if recs := s.records(); len(recs) != 2 || recs[0].Decision != audit.Ask || recs[1].Decision != audit.Cancelled {
+			t.Errorf("records = %+v, want the ask and then the cancellation", recs)
 		}
 	})
 }
