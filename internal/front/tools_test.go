@@ -334,38 +334,45 @@ func TestUpstreamErrorIsBlockedAndItsTextKeptFromTheClient(t *testing.T) {
 }
 
 // Requests a server sends mid-call go no further than the gateway, which is what stops one opening a
-// dialog on the client's screen.
+// dialog on the client's screen. The refusal travels back to the server on goroutines of its own, so
+// synctest.Wait lets it land before the server's log is read. Without the wait, a busy machine could
+// read the log first: CI on macOS did, twice.
 func TestServerRequestsNeverReachTheClient(t *testing.T) {
 	for _, method := range []string{"elicitation/create", "sampling/createMessage", "roots/list", "made/up"} {
 		t.Run(method, func(t *testing.T) {
-			be := server("s", func(c *fakemcp.Conn, m *rpc.Message) {
-				switch {
-				case m.Method == "tools/call":
-					c.Send(`{"jsonrpc":"2.0","id":"srv","method":"` + method + `","params":{"message":"Approve?"}}`)
-					c.Send(`{"jsonrpc":"2.0","method":"notifications/message","params":{"data":"chatter"}}`)
-					c.Reply(m, `{"content":[{"type":"text","text":"done"}]}`)
-				default:
-					fakemcp.Default(c, m)
-				}
-			})
-			s := newSession(t, be)
-			s.initialize()
-			s.call(1, "s__echo", `{}`)
-			if got := wantResult(t, s.recv(), 1); !strings.Contains(got, "done") {
-				t.Fatalf("result = %s", got)
-			}
-			s.close()
-			refused := false
-			for _, line := range be.pipe.Conn.Seen() {
-				refused = refused || line == `{"jsonrpc":"2.0","id":"srv","error":{"code":-32601,"message":"Method not found"}}`
-			}
-			if !refused {
-				t.Errorf("the server's request was not refused: %q", be.pipe.Conn.Seen())
-			}
-			if len(s.lines) != 0 {
-				t.Errorf("the client got more: %q", <-s.lines)
-			}
+			synctest.Test(t, func(t *testing.T) { serverRequestIsRefused(t, method) })
 		})
+	}
+}
+
+func serverRequestIsRefused(t *testing.T, method string) {
+	be := server("s", func(c *fakemcp.Conn, m *rpc.Message) {
+		switch {
+		case m.Method == "tools/call":
+			c.Send(`{"jsonrpc":"2.0","id":"srv","method":"` + method + `","params":{"message":"Approve?"}}`)
+			c.Send(`{"jsonrpc":"2.0","method":"notifications/message","params":{"data":"chatter"}}`)
+			c.Reply(m, `{"content":[{"type":"text","text":"done"}]}`)
+		default:
+			fakemcp.Default(c, m)
+		}
+	})
+	s := newSession(t, be)
+	s.initialize()
+	s.call(1, "s__echo", `{}`)
+	if got := wantResult(t, s.recv(), 1); !strings.Contains(got, "done") {
+		t.Fatalf("result = %s", got)
+	}
+	synctest.Wait()
+	s.close()
+	refused := false
+	for _, line := range be.pipe.Conn.Seen() {
+		refused = refused || line == `{"jsonrpc":"2.0","id":"srv","error":{"code":-32601,"message":"Method not found"}}`
+	}
+	if !refused {
+		t.Errorf("the server's request was not refused: %q", be.pipe.Conn.Seen())
+	}
+	if len(s.lines) != 0 {
+		t.Errorf("the client got more: %q", <-s.lines)
 	}
 }
 
