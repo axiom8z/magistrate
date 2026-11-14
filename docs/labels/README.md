@@ -2,7 +2,7 @@
 
 The gateway needs a label for every tool: who can write what it returns, whether it acts, which arguments choose a target, whether it can be undone, and whether it returns secrets. These labels came after the F1 freeze, so the code, rules and rubric were fixed before anyone labelled.
 
-**No person labelled.** The author chose to have two fresh AI sessions label instead, so these are AI sessions' labels, not the author's.
+**No person labelled.** I chose to have two fresh AI sessions label instead, so these are AI sessions' labels, not mine.
 
 | File | What it holds |
 |---|---|

@@ -58,7 +58,7 @@ One format is caught only because its body is a JWT: GitHub's stateless installa
 
 ## After the first score: post-hoc
 
-The first score above stands, and these don't replace it. Having read which formats and which placeholders failed, the author changed the rules, which gives a new table, `26c7217fa824123d7b36d1018e3561782a21eb492fd4fec74ad915a8f4740511`, and then reran the same generator, once on the first seed and once on a new one. `post-hoc/` holds the tables, and the ledger holds them with the label `post-hoc`.
+The first score above stands, and these don't replace it. The rules were then changed, after reading which formats and which placeholders failed. That gives a new table, `26c7217fa824123d7b36d1018e3561782a21eb492fd4fec74ad915a8f4740511`, and the same generator was rerun, once on the first seed and once on a new one. `post-hoc/` holds the tables, and the ledger holds them with the label `post-hoc`.
 
 | Post-hoc, table `26c7217f...` | S1 recall | S2 false hits |
 |---|---|---|

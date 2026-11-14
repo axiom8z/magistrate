@@ -97,7 +97,7 @@ DESIGN section 9 concedes the first row. Read this way, the scanner caught 47 of
 
 ## T4: AgentDyn, the blind test
 
-[AgentDyn](https://github.com/SaFo-Lab/AgentDyn)'s three new suites, `shopping`, `github` and `dailylife`, whose task files nobody here has read. Two fresh AI sessions labelled their tools from schemas alone. Each of the 60 tasks and 560 pairs played from its ground truth, as in T1. No case was invalid.
+[AgentDyn](https://github.com/SaFo-Lab/AgentDyn)'s three new suites, `shopping`, `github` and `dailylife`, whose task files I never read. The design discloses that during design an AI session fetched four of them and an AI reviewer printed their first 900 bytes; the files were deleted, and no rule cites them. Two fresh AI sessions labelled their tools from schemas alone. Each of the 60 tasks and 560 pairs played from its ground truth, as in T1. No case was invalid.
 
 | By suite | Normal tasks that pass, no gateway | Under `value` | Attack wins with no gateway | Stopped |
 |---|---|---|---|---|
