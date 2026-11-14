@@ -8,7 +8,7 @@ This is value matching, which is a heuristic and not a guarantee. [The design](d
 
 ## Status
 
-**Under construction: milestones 1 to 10 of 12 are done.** The first scores are in, including a blind test on a benchmark nobody here had read, which failed its utility line, and a run on a live local model. Milestone 11, attacks written after the freeze, was left out by the owner's decision on 2026-11-11, before any of it was built. Milestone 12, a paid sample, runs only after a measured price and the owner's yes.
+**Finished: milestones 1 to 10 are done, and 11 and 12 won't run.** The first scores are in, including a blind test on a benchmark nobody here had read, which failed its utility line, and a run on a live local model. Milestone 11, attacks written after the freeze, was left out by the owner's decision on 2026-11-11, before any of it was built. Milestone 12, an optional paid sample, was priced and then not run, by the owner's decision on 2026-11-13. [The design](docs/DESIGN.md#8-evaluation-plan) had said it might measure only utility cost, and the live-model run then found no headroom.
 
 The labels the first scores used were written after the code was frozen, by fresh AI sessions that saw only a rubric and the tools' schemas. No person labelled. [How they were made](docs/labels/README.md).
 
